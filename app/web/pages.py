@@ -49,7 +49,9 @@ async def embed_script() -> Response:
 _EMBED_TEMPLATE = """
 (function () {
   var BASE = "__BASE__";
-  var current = document.currentScript;
+  // currentScript пуст, если тег вставили динамически — так делает next/script,
+  // поэтому подстраховываемся поиском по атрибуту.
+  var current = document.currentScript || document.querySelector("script[data-notary]");
   if (!current) return;
   var slug = current.getAttribute("data-notary");
   if (!slug) {
