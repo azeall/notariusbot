@@ -1,0 +1,105 @@
+{% extends "base_panel.html" %}
+{% block content %}
+<h1>Заявка № {{ req.public_number }}</h1>
+<p class="lead">
+  {{ req.service_title }} · <span class="badge">{{ labels[req.status] }}</span>
+</p>
+
+{% if request.query_params.get('taken') %}
+  <div class="callout">Эту заявку уже взял другой сотрудник.</div>
+{% endif %}
+{% if request.query_params.get('link') %}
+  <div class="callout">
+    Одноразовая ссылка для клиента, действует 30 минут:<br>
+    <code>{{ request.query_params.get('link') }}</code>
+  </div>
+{% endif %}
+
+<div class="card">
+  <table>
+    <tr><th>Клиент</th><td>{{ req.client.full_name }}</td></tr>
+    <tr><th>Телефон</th><td>{{ req.client.phone }}</td></tr>
+    <tr><th>Канал</th><td>{{ req.channel.value }}</td></tr>
+    <tr><th>Подача</th><td>{{ 'личный визит' if req.submission_mode.value == 'visit' else 'документы онлайн' }}</td></tr>
+    {% if req.preferred_time_note %}
+      <tr><th>Время приёма</th><td>{{ req.preferred_time_note }}</td></tr>
+    {% endif %}
+    <tr><th>Согласие на ПД</th><td>{{ 'получено' if req.client.has_consent else 'нет' }}</td></tr>
+    {% if req.client_comment %}
+      <tr><th>Комментарий</th><td>{{ req.client_comment }}</td></tr>
+    {% endif %}
+  </table>
+</div>
+
+<h2>Перечень, который видел клиент</h2>
+<div class="card">
+  <ul class="checklist">
+    {% for doc in req.checklist %}
+      <li{% if not doc.is_required %} class="optional"{% endif %}>
+        {{ doc.title }}{% if not doc.is_required %}<span class="opt">если есть</span>{% endif %}
+        {% if doc.description %}<div class="m">{{ doc.description }}</div>{% endif %}
+      </li>
+    {% else %}
+      <li>Перечень не задан</li>
+    {% endfor %}
+  </ul>
+</div>
+
+<h2>Документы ({{ req.attachments|length }})</h2>
+{% if not req.attachments %}
+  <div class="empty">Клиент ещё ничего не загрузил.</div>
+{% endif %}
+{% for doc in req.attachments %}
+  <div class="card row">
+    <div class="grow">
+      <div class="t">{{ doc.original_filename }}</div>
+      <div class="m">{{ (doc.size_bytes / 1024)|round|int }} КБ · {{ doc.content_type }}</div>
+    </div>
+    {% if doc.is_available %}
+      <a class="btn ghost" href="/staff/requests/{{ req.id }}/documents/{{ doc.id }}" target="_blank" rel="noopener">Открыть</a>
+    {% else %}
+      <span class="badge closed">удалён по сроку хранения</span>
+    {% endif %}
+  </div>
+{% endfor %}
+
+{% if req.submission_mode.value == 'documents' %}
+  <form method="post" action="/staff/requests/{{ req.id }}/upload-link" class="actions">
+    <button class="ghost" type="submit">Выдать ссылку на догрузку</button>
+  </form>
+{% endif %}
+
+{% if next_statuses %}
+  <h2>Изменить статус</h2>
+  <div class="card">
+    <form method="post" action="/staff/requests/{{ req.id }}/status">
+      <label class="field">
+        <span class="cap">Новый статус</span>
+        <select name="target">
+          {% for st in next_statuses %}
+            <option value="{{ st.value }}">{{ labels[st] }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        <span class="cap">Комментарий (виден только сотрудникам)</span>
+        <input type="text" name="comment">
+      </label>
+      <button type="submit">Применить</button>
+    </form>
+  </div>
+{% endif %}
+
+<h2>История</h2>
+<ul class="timeline">
+  {% for event in req.events %}
+    <li>
+      <div>{{ labels.get(event.to_status, event.to_status) if event.to_status else '' }}
+        {%- if event.comment %} — {{ event.comment }}{% endif %}</div>
+      <div class="when">{{ event.created_at.strftime('%d.%m.%Y %H:%M') }} · {{ event.actor_label or '—' }}</div>
+    </li>
+  {% endfor %}
+</ul>
+
+<div class="actions"><a class="btn ghost" href="/staff">← ко всем заявкам</a></div>
+{% endblock %}

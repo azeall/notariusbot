@@ -1,0 +1,303 @@
+import uuid
+
+from fastapi import APIRouter, Depends, Form, HTTPException, Request as HttpRequest, status
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.domain.requests import claim_request, issue_upload_token, transition_request
+from app.domain.security import hash_password, verify_password
+from app.domain.statuses import STATUS_LABELS, ALLOWED_TRANSITIONS, TransitionError
+from app.domain.storage import DocumentStorage
+from app.config import get_settings
+from app.models import (
+    Attachment,
+    AuditLog,
+    Request,
+    RequestStatus,
+    Staff,
+    Tenant,
+)
+from app.web.deps import (
+    SESSION_COOKIE,
+    client_ip,
+    current_staff,
+    db_session,
+    issue_session_cookie,
+)
+
+router = APIRouter(prefix="/staff", tags=["staff"])
+
+# Настоящий хеш от заведомо неподходящего пароля: сверка с ним занимает столько же
+# времени, сколько сверка с реальным, и не выдаёт, существует ли такой сотрудник.
+_DUMMY_HASH = hash_password("bcb1f2c0-none")
+
+
+def _templates():
+    from app.web.main import TEMPLATES
+
+    return TEMPLATES
+
+
+@router.get("/{slug}/login", response_class=HTMLResponse)
+async def login_form(
+    slug: str, http_request: HttpRequest, session: AsyncSession = Depends(db_session)
+):
+    tenant = await session.scalar(select(Tenant).where(Tenant.slug == slug))
+    if tenant is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Нотариус не найден")
+    return _templates().TemplateResponse(
+        http_request, "staff_login.html", {"title": "Вход", "tenant": tenant, "error": None}
+    )
+
+
+@router.post("/{slug}/login")
+async def login(
+    slug: str,
+    http_request: HttpRequest,
+    email: str = Form(...),
+    password: str = Form(...),
+    session: AsyncSession = Depends(db_session),
+):
+    tenant = await session.scalar(select(Tenant).where(Tenant.slug == slug))
+    if tenant is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Нотариус не найден")
+
+    staff = await session.scalar(
+        select(Staff).where(
+            Staff.tenant_id == tenant.id,
+            Staff.email == email.strip().lower(),
+            Staff.is_active.is_(True),
+        )
+    )
+    # Пароль проверяем всегда, даже если сотрудник не найден: иначе по времени
+    # ответа можно перебрать существующие адреса.
+    ok = verify_password(password, staff.password_hash if staff else _DUMMY_HASH)
+    if staff is None or not ok:
+        return _templates().TemplateResponse(
+            http_request,
+            "staff_login.html",
+            {"title": "Вход", "tenant": tenant, "error": "Неверная почта или пароль"},
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    session.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            actor_staff_id=staff.id,
+            actor_label=staff.full_name,
+            action="login",
+            object_type="staff",
+            object_id=str(staff.id),
+            source_ip=client_ip(http_request),
+        )
+    )
+    response = RedirectResponse("/staff", status_code=status.HTTP_303_SEE_OTHER)
+    response.set_cookie(
+        SESSION_COOKIE,
+        issue_session_cookie(staff),
+        httponly=True,
+        samesite="lax",
+        max_age=60 * 60 * 12,
+    )
+    return response
+
+
+@router.post("/logout")
+async def logout() -> Response:
+    response = RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+    response.delete_cookie(SESSION_COOKIE)
+    return response
+
+
+@router.get("", response_class=HTMLResponse)
+async def queue(
+    http_request: HttpRequest,
+    staff: Staff = Depends(current_staff),
+    session: AsyncSession = Depends(db_session),
+):
+    """Очередь заявок: сначала ничьи, затем взятые этим сотрудником."""
+    unclaimed = list(
+        await session.scalars(
+            select(Request)
+            .where(
+                Request.tenant_id == staff.tenant_id,
+                Request.status == RequestStatus.NEW,
+            )
+            .options(selectinload(Request.client), selectinload(Request.attachments))
+            .order_by(Request.created_at)
+        )
+    )
+    mine = list(
+        await session.scalars(
+            select(Request)
+            .where(
+                Request.tenant_id == staff.tenant_id,
+                Request.assigned_staff_id == staff.id,
+                Request.status.notin_(
+                    [RequestStatus.COMPLETED, RequestStatus.REJECTED, RequestStatus.CANCELLED]
+                ),
+            )
+            .options(selectinload(Request.client), selectinload(Request.attachments))
+            .order_by(Request.claimed_at)
+        )
+    )
+    tenant = await session.get(Tenant, staff.tenant_id)
+    return _templates().TemplateResponse(
+        http_request,
+        "staff_queue.html",
+        {
+            "title": "Заявки",
+            "staff": staff,
+            "tenant": tenant,
+            "unclaimed": unclaimed,
+            "mine": mine,
+            "labels": STATUS_LABELS,
+        },
+    )
+
+
+async def _load_request(
+    session: AsyncSession, staff: Staff, request_id: uuid.UUID
+) -> Request:
+    request = await session.scalar(
+        select(Request)
+        .where(Request.id == request_id, Request.tenant_id == staff.tenant_id)
+        .options(
+            selectinload(Request.client),
+            selectinload(Request.attachments),
+            selectinload(Request.events),
+        )
+    )
+    if request is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Заявка не найдена")
+    return request
+
+
+@router.get("/requests/{request_id}", response_class=HTMLResponse)
+async def request_detail(
+    request_id: uuid.UUID,
+    http_request: HttpRequest,
+    staff: Staff = Depends(current_staff),
+    session: AsyncSession = Depends(db_session),
+):
+    request = await _load_request(session, staff, request_id)
+    tenant = await session.get(Tenant, staff.tenant_id)
+    return _templates().TemplateResponse(
+        http_request,
+        "staff_request.html",
+        {
+            "title": f"Заявка № {request.public_number}",
+            "staff": staff,
+            "tenant": tenant,
+            # Ключ "request" занят Starlette под HTTP-запрос, поэтому заявка
+            # лежит под "req" — иначе шаблонный ответ падает при рендере.
+            "req": request,
+            "labels": STATUS_LABELS,
+            "next_statuses": sorted(ALLOWED_TRANSITIONS.get(request.status, frozenset())),
+        },
+    )
+
+
+@router.post("/requests/{request_id}/claim")
+async def claim(
+    request_id: uuid.UUID,
+    staff: Staff = Depends(current_staff),
+    session: AsyncSession = Depends(db_session),
+):
+    claimed = await claim_request(session, request_id=request_id, staff=staff)
+    if claimed is None:
+        # Заявку успел взять кто-то другой — показываем актуальное состояние.
+        return RedirectResponse(
+            f"/staff/requests/{request_id}?taken=1", status_code=status.HTTP_303_SEE_OTHER
+        )
+    return RedirectResponse(
+        f"/staff/requests/{request_id}", status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+@router.post("/requests/{request_id}/status")
+async def change_status(
+    request_id: uuid.UUID,
+    target: str = Form(...),
+    comment: str = Form(""),
+    staff: Staff = Depends(current_staff),
+    session: AsyncSession = Depends(db_session),
+):
+    request = await _load_request(session, staff, request_id)
+    try:
+        await transition_request(
+            session,
+            request=request,
+            target=RequestStatus(target),
+            staff=staff,
+            comment=comment,
+        )
+    except (TransitionError, ValueError) as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return RedirectResponse(
+        f"/staff/requests/{request_id}", status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+@router.post("/requests/{request_id}/upload-link")
+async def new_upload_link(
+    request_id: uuid.UUID,
+    staff: Staff = Depends(current_staff),
+    session: AsyncSession = Depends(db_session),
+):
+    """Выдать клиенту новую одноразовую ссылку на догрузку документов."""
+    request = await _load_request(session, staff, request_id)
+    _, token = await issue_upload_token(session, request=request)
+    url = f"{get_settings().public_base_url}/upload/{token}"
+    return RedirectResponse(
+        f"/staff/requests/{request_id}?link={url}", status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+@router.get("/requests/{request_id}/documents/{attachment_id}")
+async def download_document(
+    request_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    http_request: HttpRequest,
+    staff: Staff = Depends(current_staff),
+    session: AsyncSession = Depends(db_session),
+) -> Response:
+    """Выдача документа сотруднику. Каждое открытие попадает в журнал доступа."""
+    attachment = await session.scalar(
+        select(Attachment).where(
+            Attachment.id == attachment_id,
+            Attachment.request_id == request_id,
+            Attachment.tenant_id == staff.tenant_id,
+        )
+    )
+    if attachment is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Документ не найден")
+    if not attachment.is_available:
+        raise HTTPException(status.HTTP_410_GONE, "Документ удалён по истечении срока хранения")
+
+    payload = DocumentStorage().load(attachment.storage_path)
+
+    session.add(
+        AuditLog(
+            tenant_id=staff.tenant_id,
+            actor_staff_id=staff.id,
+            actor_label=staff.full_name,
+            action="document_viewed",
+            object_type="attachment",
+            object_id=str(attachment.id),
+            source_ip=client_ip(http_request),
+            details=attachment.original_filename,
+        )
+    )
+    await session.flush()
+
+    return Response(
+        content=payload,
+        media_type=attachment.content_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{attachment.id}"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )

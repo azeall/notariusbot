@@ -1,0 +1,32 @@
+
+from sqlalchemy import Boolean, Enum, String, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, TenantScoped, Timestamps, UUIDPrimaryKey
+from app.models.enums import StaffRole
+
+
+class Staff(Base, UUIDPrimaryKey, TenantScoped, Timestamps):
+    """Нотариус и его помощники. Логин — email, пароль хранится хешем argon2."""
+
+    __tablename__ = "staff"
+    __table_args__ = (UniqueConstraint("tenant_id", "email", name="uq_staff_tenant_email"),)
+
+    email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[StaffRole] = mapped_column(
+        Enum(StaffRole, name="staff_role", native_enum=False, length=32),
+        default=StaffRole.EMPLOYEE,
+        nullable=False,
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    tenant: Mapped["Tenant"] = relationship(back_populates="staff")  # noqa: F821
+
+    @property
+    def can_manage_catalog(self) -> bool:
+        return self.role is StaffRole.OWNER
+
+    def __repr__(self) -> str:
+        return f"<Staff {self.email} {self.role}>"

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="/static/widget.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="name">Загрузка документов</div>
+    <div class="sub">Заявка № {{ req.public_number }} · {{ req.service_title }}</div>
+  </header>
+
+  <main>
+    {% if checklist %}
+      <p class="hint">Нужны эти документы:</p>
+      <ul class="checklist">
+        {% for doc in checklist %}
+          <li{% if not doc.is_required %} class="optional"{% endif %}>
+            <div>{{ doc.title }}{% if not doc.is_required %}<span class="opt">если есть</span>{% endif %}</div>
+            {% if doc.description %}<div class="d">{{ doc.description }}</div>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    <label class="field">
+      <span class="cap">Выберите файлы — PDF или фотографии, до {{ max_mb }} МБ каждый</span>
+      <input type="file" id="files" multiple accept=".pdf,image/jpeg,image/png,image/heic">
+    </label>
+
+    <div class="callout">
+      Файлы шифруются при сохранении и доступны только сотрудникам этого нотариуса.
+      Ссылка одноразовая: после отправки она перестанет работать.
+    </div>
+
+    <div class="error" id="err"></div>
+    <button class="primary" type="button" id="send">Отправить документы</button>
+
+    <div id="done" hidden style="text-align:center;padding-top:20px">
+      <h2>Документы получены</h2>
+      <p class="hint" id="done-list"></p>
+    </div>
+  </main>
+
+  <footer>Не отправляйте документы посторонним. Проверяйте адрес страницы в браузере.</footer>
+</div>
+
+<script>
+(function () {
+  var token = {{ token | tojson }};
+  var input = document.getElementById("files");
+  var err = document.getElementById("err");
+  var btn = document.getElementById("send");
+
+  btn.addEventListener("click", function () {
+    err.textContent = "";
+    if (!input.files.length) { err.textContent = "Выберите хотя бы один файл."; return; }
+
+    var data = new FormData();
+    for (var i = 0; i < input.files.length; i++) data.append("files", input.files[i]);
+
+    btn.disabled = true;
+    btn.textContent = "Отправляем…";
+    fetch("/upload/" + encodeURIComponent(token), { method: "POST", body: data })
+      .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
+      .then(function (res) {
+        if (!res.ok) {
+          btn.disabled = false;
+          btn.textContent = "Отправить документы";
+          err.textContent = res.body.detail || "Не удалось загрузить файлы.";
+          return;
+        }
+        document.querySelectorAll(".field, .callout, #send, .checklist, .hint").forEach(function (el) {
+          el.hidden = true;
+        });
+        document.getElementById("done").hidden = false;
+        document.getElementById("done-list").textContent = "Принято: " + res.body.saved.join(", ");
+      })
+      .catch(function () {
+        btn.disabled = false;
+        btn.textContent = "Отправить документы";
+        err.textContent = "Нет связи с сервером.";
+      });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="/static/widget.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="name">{{ tenant.display_name }}</div>
+    <div class="sub">
+      {% if tenant.city %}{{ tenant.city }}{% endif %}
+      {%- if tenant.phone %} · {{ tenant.phone }}{% endif %}
+    </div>
+  </header>
+
+  <main>
+    <!-- Шаг 1: выбор услуги -->
+    <section class="step" data-step="service" data-active="1">
+      <h2>С чем к нотариусу?</h2>
+      <p class="hint">Опишите своими словами или выберите из списка.</p>
+      <label class="field">
+        <input type="text" id="q" placeholder="например: доверенность на машину" autocomplete="off">
+      </label>
+      <div id="services"></div>
+    </section>
+
+    <!-- Шаг 2: перечень документов -->
+    <section class="step" data-step="details">
+      <div class="back"><button class="link" type="button" data-goto="service">← к списку услуг</button></div>
+      <h2 id="svc-title"></h2>
+      <div class="meta" id="svc-meta"></div>
+      <p class="hint" id="docs-cap">Что нужно взять с собой:</p>
+      <ul class="checklist" id="docs"></ul>
+      <button class="primary" type="button" id="to-contacts">Продолжить</button>
+    </section>
+
+    <!-- Шаг 3: контакты и время -->
+    <section class="step" data-step="contacts">
+      <div class="back"><button class="link" type="button" data-goto="details">← к документам</button></div>
+      <h2>Ваши контакты</h2>
+      <div id="slots-block" hidden>
+        <p class="hint">Выберите удобное время приёма:</p>
+        <div class="slots" id="slots"></div>
+      </div>
+      <label class="field">
+        <span class="cap">Фамилия и имя</span>
+        <input type="text" id="name" autocomplete="name">
+      </label>
+      <label class="field">
+        <span class="cap">Телефон</span>
+        <input type="tel" id="phone" placeholder="+7 900 000-00-00" autocomplete="tel">
+      </label>
+      <label class="field">
+        <span class="cap">Комментарий (необязательно)</span>
+        <textarea id="comment"></textarea>
+      </label>
+      <div class="honeypot" aria-hidden="true">
+        <label>Сайт<input type="text" id="website" tabindex="-1" autocomplete="off"></label>
+      </div>
+      <label class="consent">
+        <input type="checkbox" id="consent">
+        <span>Согласен на обработку персональных данных для оформления заявки.</span>
+      </label>
+      <div class="error" id="err"></div>
+      <button class="primary" type="button" id="submit">Отправить заявку</button>
+    </section>
+
+    <!-- Шаг 4: готово -->
+    <section class="step" data-step="done">
+      <div class="done">
+        <h2>Заявка принята</h2>
+        <div class="num" id="req-num"></div>
+        <p id="done-text"></p>
+        <div class="callout" id="done-callout" hidden></div>
+        <button class="ghost" type="button" data-goto="service">Оформить ещё одну</button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Заявка не является нотариальным действием. Окончательный перечень документов
+    подтверждает сотрудник нотариуса.
+  </footer>
+</div>
+
+<script>
+(function () {
+  var API = {{ api_base | tojson }};
+  var state = { service: null, slot: null };
+
+  function $(id) { return document.getElementById(id); }
+  function show(name) {
+    document.querySelectorAll(".step").forEach(function (el) {
+      if (el.dataset.step === name) { el.dataset.active = "1"; } else { delete el.dataset.active; }
+    });
+    window.scrollTo(0, 0);
+  }
+
+  document.querySelectorAll("[data-goto]").forEach(function (el) {
+    el.addEventListener("click", function () { show(el.dataset.goto); });
+  });
+
+  function renderServices(items) {
+    var box = $("services");
+    box.innerHTML = "";
+    if (!items.length) {
+      box.innerHTML = '<p class="hint">Ничего не нашлось. Попробуйте другое слово или выберите из полного списка.</p>';
+      return;
+    }
+    items.forEach(function (svc) {
+      var b = document.createElement("button");
+      b.className = "service";
+      b.type = "button";
+      var mode = svc.submission_mode === "visit" ? "нужен личный визит" : "документы можно прислать онлайн";
+      b.innerHTML = '<div class="t"></div><div class="m"></div>';
+      b.querySelector(".t").textContent = svc.title;
+      b.querySelector(".m").textContent = mode + (svc.lead_time_note ? " · " + svc.lead_time_note : "");
+      b.addEventListener("click", function () { openService(svc); });
+      box.appendChild(b);
+    });
+  }
+
+  function loadAll() {
+    fetch(API + "/services").then(function (r) { return r.json(); }).then(renderServices);
+  }
+
+  var timer = null;
+  $("q").addEventListener("input", function (e) {
+    clearTimeout(timer);
+    var value = e.target.value.trim();
+    timer = setTimeout(function () {
+      if (value.length < 3) { loadAll(); return; }
+      fetch(API + "/services/search?q=" + encodeURIComponent(value))
+        .then(function (r) { return r.json(); })
+        .then(renderServices);
+    }, 250);
+  });
+
+  function openService(svc) {
+    state.service = svc;
+    state.slot = null;
+    $("svc-title").textContent = svc.title;
+
+    var meta = $("svc-meta");
+    meta.innerHTML = "";
+    function row(k, v) {
+      if (!v) return;
+      var d = document.createElement("div");
+      var a = document.createElement("span"); a.textContent = k;
+      var b = document.createElement("span"); b.textContent = v;
+      d.appendChild(a); d.appendChild(b); meta.appendChild(d);
+    }
+    row("Срок", svc.lead_time_note);
+    row("Стоимость", svc.price_note);
+    row("Как подать", svc.submission_mode === "visit" ? "личный визит" : "документы онлайн");
+
+    var list = $("docs");
+    list.innerHTML = "";
+    svc.documents.forEach(function (doc) {
+      var li = document.createElement("li");
+      if (!doc.is_required) li.className = "optional";
+      var title = document.createElement("div");
+      title.textContent = doc.title;
+      if (!doc.is_required) {
+        var opt = document.createElement("span");
+        opt.className = "opt"; opt.textContent = "если есть";
+        title.appendChild(opt);
+      }
+      li.appendChild(title);
+      if (doc.description) {
+        var d = document.createElement("div");
+        d.className = "d"; d.textContent = doc.description;
+        li.appendChild(d);
+      }
+      list.appendChild(li);
+    });
+    $("docs-cap").textContent = svc.documents.length
+      ? "Что понадобится:" : "Отдельный перечень документов не требуется.";
+
+    show("details");
+  }
+
+  $("to-contacts").addEventListener("click", function () {
+    var svc = state.service;
+    var block = $("slots-block");
+    if (svc.submission_mode === "visit") {
+      block.hidden = false;
+      fetch(API + "/services/" + svc.id + "/slots")
+        .then(function (r) { return r.json(); })
+        .then(function (slots) {
+          var box = $("slots");
+          box.innerHTML = "";
+          if (!slots.length) {
+            box.innerHTML = '<p class="hint">Свободного времени пока нет — оставьте заявку, вам перезвонят.</p>';
+            return;
+          }
+          slots.forEach(function (slot) {
+            var b = document.createElement("button");
+            b.className = "slot"; b.type = "button";
+            b.setAttribute("aria-pressed", "false");
+            b.textContent = slot.label;
+            b.addEventListener("click", function () {
+              box.querySelectorAll(".slot").forEach(function (x) { x.setAttribute("aria-pressed", "false"); });
+              b.setAttribute("aria-pressed", "true");
+              state.slot = slot.starts_at;
+            });
+            box.appendChild(b);
+          });
+        });
+    } else {
+      block.hidden = true;
+    }
+    show("contacts");
+  });
+
+  $("submit").addEventListener("click", function () {
+    var btn = this;
+    var err = $("err");
+    err.textContent = "";
+
+    var payload = {
+      service_id: state.service.id,
+      full_name: $("name").value,
+      phone: $("phone").value,
+      comment: $("comment").value,
+      consent: $("consent").checked,
+      website: $("website").value,
+      slot: state.slot
+    };
+
+    if (!payload.consent) { err.textContent = "Нужно согласие на обработку персональных данных."; return; }
+    if (state.service.submission_mode === "visit" && !state.slot) {
+      err.textContent = "Выберите время приёма."; return;
+    }
+
+    btn.disabled = true;
+    fetch(API + "/requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    })
+      .then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); })
+      .then(function (res) {
+        btn.disabled = false;
+        if (!res.ok) {
+          var detail = res.body.detail;
+          if (Array.isArray(detail)) detail = detail.map(function (d) { return d.msg; }).join(". ");
+          err.textContent = detail || "Не удалось отправить заявку.";
+          return;
+        }
+        finish(res.body);
+      })
+      .catch(function () {
+        btn.disabled = false;
+        err.textContent = "Нет связи с сервером. Попробуйте ещё раз.";
+      });
+  });
+
+  function finish(data) {
+    $("req-num").textContent = "№ " + data.public_number;
+    var callout = $("done-callout");
+    if (data.upload_url) {
+      $("done-text").textContent = "Документы можно прислать прямо сейчас — по защищённой ссылке.";
+      callout.hidden = false;
+      callout.innerHTML = "";
+      var a = document.createElement("a");
+      a.href = data.upload_url; a.target = "_blank"; a.rel = "noopener";
+      a.textContent = "Загрузить документы";
+      var note = document.createElement("div");
+      note.style.cssText = "color:var(--slate);margin-top:6px;font-size:12.5px";
+      note.textContent = "Ссылка одноразовая и действует 30 минут.";
+      callout.appendChild(a); callout.appendChild(note);
+    } else {
+      $("done-text").textContent = "Сотрудник свяжется с вами для подтверждения.";
+      callout.hidden = true;
+    }
+    show("done");
+  }
+
+  loadAll();
+})();
+</script>
+</body>
+</html>

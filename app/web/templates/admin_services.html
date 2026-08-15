@@ -1,0 +1,43 @@
+{% extends "base_panel.html" %}
+{% block content %}
+<h1>Услуги</h1>
+<p class="lead">
+  Клиент видит их в виджете. Правки перечня не затрагивают уже созданные заявки —
+  у каждой сохранён свой слепок.
+</p>
+
+<div class="actions" style="margin-bottom:18px">
+  <a class="btn" href="/admin/services/new">Добавить услугу</a>
+</div>
+
+{% if not services %}
+  <div class="empty">Пока ни одной услуги. Клиенту нечего выбрать.</div>
+{% endif %}
+
+{% for service in services %}
+  <div class="card row">
+    <div class="grow">
+      <div class="t">
+        {{ service.title }}
+        {% if not service.is_active %}<span class="badge closed">скрыта</span>{% endif %}
+      </div>
+      <div class="m">
+        {{ 'личный визит' if service.submission_mode.value == 'visit' else 'документы онлайн' }}
+        · документов: {{ service.documents|length }}
+        {%- if service.lead_time_note %} · {{ service.lead_time_note }}{% endif %}
+      </div>
+    </div>
+    <a class="btn ghost" href="/admin/services/{{ service.id }}">Изменить</a>
+    <form method="post" action="/admin/services/{{ service.id }}/delete" style="margin:0"
+          onsubmit="return confirm('Удалить услугу «{{ service.title }}»?')">
+      <button class="danger" type="submit">Удалить</button>
+    </form>
+  </div>
+{% endfor %}
+
+<h2>Как поставить виджет на сайт</h2>
+<div class="callout">
+  Вставьте перед закрывающим тегом <code>&lt;/body&gt;</code> на сайте нотариуса:<br><br>
+  <code>&lt;script src="{{ request.base_url }}embed.js" data-notary="{{ tenant.slug }}" defer&gt;&lt;/script&gt;</code>
+</div>
+{% endblock %}

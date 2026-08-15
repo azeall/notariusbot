@@ -1,0 +1,41 @@
+{% extends "base_panel.html" %}
+{% block content %}
+<h1>Заявки</h1>
+<p class="lead">Свободные заявки берёт любой сотрудник — кто первым нажал, тот и ведёт.</p>
+
+<h2>Ничьи ({{ unclaimed|length }})</h2>
+{% if not unclaimed %}
+  <div class="empty">Пусто. Все заявки разобраны.</div>
+{% endif %}
+{% for request in unclaimed %}
+  <div class="card row">
+    <div class="grow">
+      <div class="t">№ {{ request.public_number }} · {{ request.service_title }}</div>
+      <div class="m">
+        {{ request.client.full_name }} · {{ request.client.phone }}
+        {%- if request.attachments %} · документов: {{ request.attachments|length }}{% endif %}
+        {%- if request.submission_mode.value == 'visit' %} · личный визит{% endif %}
+      </div>
+    </div>
+    <span class="badge new">{{ labels[request.status] }}</span>
+    <form method="post" action="/staff/requests/{{ request.id }}/claim" style="margin:0">
+      <button type="submit">Взять</button>
+    </form>
+  </div>
+{% endfor %}
+
+<h2>Мои в работе ({{ mine|length }})</h2>
+{% if not mine %}
+  <div class="empty">Вы пока ничего не взяли.</div>
+{% endif %}
+{% for request in mine %}
+  <div class="card row">
+    <div class="grow">
+      <div class="t">№ {{ request.public_number }} · {{ request.service_title }}</div>
+      <div class="m">{{ request.client.full_name }} · {{ request.client.phone }}</div>
+    </div>
+    <span class="badge">{{ labels[request.status] }}</span>
+    <a class="btn ghost" href="/staff/requests/{{ request.id }}">Открыть</a>
+  </div>
+{% endfor %}
+{% endblock %}

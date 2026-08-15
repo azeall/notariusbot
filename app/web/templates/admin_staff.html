@@ -1,0 +1,52 @@
+{% extends "base_panel.html" %}
+{% block content %}
+<h1>Сотрудники</h1>
+<p class="lead">Заявки видят все сотрудники, редактировать услуги может только владелец.</p>
+
+{% for person in people %}
+  <div class="card row">
+    <div class="grow">
+      <div class="t">
+        {{ person.full_name }}
+        {% if not person.is_active %}<span class="badge closed">отключён</span>{% endif %}
+      </div>
+      <div class="m">{{ person.email }} · {{ 'владелец' if person.can_manage_catalog else 'сотрудник' }}</div>
+    </div>
+    {% if person.id != staff.id %}
+      <form method="post" action="/admin/staff/{{ person.id }}/toggle" style="margin:0">
+        <button class="ghost" type="submit">{{ 'Включить' if not person.is_active else 'Отключить' }}</button>
+      </form>
+    {% endif %}
+  </div>
+{% endfor %}
+
+<h2>Добавить сотрудника</h2>
+<div class="card">
+  <form method="post" action="/admin/staff">
+    <div class="grid2">
+      <label class="field">
+        <span class="cap">Фамилия и имя</span>
+        <input type="text" name="full_name" required>
+      </label>
+      <label class="field">
+        <span class="cap">Рабочая почта</span>
+        <input type="email" name="email" required>
+      </label>
+    </div>
+    <div class="grid2">
+      <label class="field">
+        <span class="cap">Пароль (от 8 символов)</span>
+        <input type="password" name="password" required minlength="8">
+      </label>
+      <label class="field">
+        <span class="cap">Роль</span>
+        <select name="role">
+          <option value="employee">Сотрудник</option>
+          <option value="owner">Владелец</option>
+        </select>
+      </label>
+    </div>
+    <button type="submit">Добавить</button>
+  </form>
+</div>
+{% endblock %}

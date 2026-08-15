@@ -1,0 +1,21 @@
+{% extends "base_panel.html" %}
+{% block content %}
+<div class="login">
+  <h1>{{ tenant.display_name }}</h1>
+  <p class="lead">Вход для сотрудников</p>
+
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+  <form method="post" action="/staff/{{ tenant.slug }}/login">
+    <label class="field">
+      <span class="cap">Рабочая почта</span>
+      <input type="email" name="email" required autocomplete="username">
+    </label>
+    <label class="field">
+      <span class="cap">Пароль</span>
+      <input type="password" name="password" required autocomplete="current-password">
+    </label>
+    <button type="submit" style="width:100%">Войти</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,90 @@
+{% extends "base_panel.html" %}
+{% block content %}
+<h1>{{ 'Новая услуга' if not service else 'Изменить услугу' }}</h1>
+
+<form method="post" action="/admin/services">
+  <input type="hidden" name="service_id" value="{{ service.id if service else '' }}">
+
+  <label class="field">
+    <span class="cap">Название — так его увидит клиент</span>
+    <input type="text" name="title" required value="{{ service.title if service else '' }}">
+  </label>
+
+  <div class="grid2">
+    <label class="field">
+      <span class="cap">Короткий код (латиницей)</span>
+      <input type="text" name="slug" required value="{{ service.slug if service else '' }}">
+    </label>
+    <label class="field">
+      <span class="cap">Порядок в списке</span>
+      <input type="number" name="sort_order" value="{{ service.sort_order if service else 0 }}">
+    </label>
+  </div>
+
+  <label class="field">
+    <span class="cap">Описание</span>
+    <input type="text" name="description" value="{{ service.description if service else '' }}">
+  </label>
+
+  <div class="grid2">
+    <label class="field">
+      <span class="cap">Как принимается</span>
+      <select name="submission_mode">
+        <option value="documents" {% if service and service.submission_mode.value == 'documents' %}selected{% endif %}>
+          Документы можно прислать онлайн
+        </option>
+        <option value="visit" {% if service and service.submission_mode.value == 'visit' %}selected{% endif %}>
+          Нужен личный визит
+        </option>
+      </select>
+    </label>
+    <label class="field">
+      <span class="cap">Длительность приёма, минут</span>
+      <input type="number" name="visit_duration_minutes" min="5" step="5"
+             value="{{ service.visit_duration_minutes if service else 30 }}">
+      <span class="note">Из этого нарезаются слоты записи.</span>
+    </label>
+  </div>
+
+  <div class="grid2">
+    <label class="field">
+      <span class="cap">Срок оформления</span>
+      <input type="text" name="lead_time_note" placeholder="1 рабочий день"
+             value="{{ service.lead_time_note if service else '' }}">
+    </label>
+    <label class="field">
+      <span class="cap">Стоимость</span>
+      <input type="text" name="price_note" placeholder="от 2 500 ₽"
+             value="{{ service.price_note if service else '' }}">
+    </label>
+  </div>
+
+  <label class="field">
+    <span class="cap">Слова для поиска, через запятую</span>
+    <input type="text" name="keywords" placeholder="машина, авто, автомобиль"
+           value="{{ service.keywords|join(', ') if service else '' }}">
+    <span class="note">Клиент пишет «на машину» — попадает на «Доверенность на транспортное средство».</span>
+  </label>
+
+  <label class="field">
+    <span class="cap">Перечень документов</span>
+    <textarea name="documents" spellcheck="false">{{ documents_text }}</textarea>
+    <span class="note">
+      Одна строка — один документ. Знак <b>?</b> в начале строки делает документ необязательным,
+      тире <b>—</b> отделяет пояснение.<br>
+      Например: <code>Паспорт доверителя — все страницы</code> и <code>? Согласие супруга</code>
+    </span>
+  </label>
+
+  <label class="field">
+    <input type="checkbox" name="is_active" value="1"
+           {% if not service or service.is_active %}checked{% endif %}>
+    Показывать клиентам
+  </label>
+
+  <div class="actions">
+    <button type="submit">Сохранить</button>
+    <a class="btn ghost" href="/admin">Отмена</a>
+  </div>
+</form>
+{% endblock %}
