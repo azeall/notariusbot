@@ -42,7 +42,9 @@ async def embed_script() -> Response:
     return Response(
         content=script,
         media_type="application/javascript; charset=utf-8",
-        headers={"Cache-Control": "public, max-age=300"},
+        # Короткий кеш намеренно: скрипт содержит адрес сервиса, и при переезде
+        # (или смене адреса туннеля) браузеры не должны держать старую копию.
+        headers={"Cache-Control": "public, max-age=60"},
     )
 
 

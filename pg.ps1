@@ -1,4 +1,4 @@
-# Управление локальным PostgreSQL (портативная сборка, без службы Windows).
+﻿# Управление локальным PostgreSQL (портативная сборка, без службы Windows).
 # Использование:  .\pg.ps1 start | stop | status | psql
 param(
     [ValidateSet('start', 'stop', 'status', 'psql')]
