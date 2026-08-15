@@ -2,7 +2,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request as HttpRequest, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -156,6 +156,24 @@ async def queue(
             "labels": STATUS_LABELS,
         },
     )
+
+
+@router.get("/queue-count")
+async def queue_count(
+    staff: Staff = Depends(current_staff), session: AsyncSession = Depends(db_session)
+) -> dict[str, int]:
+    """Сколько ничьих заявок сейчас в очереди.
+
+    Очередь опрашивает этот адрес и показывает баннер, когда появляется новая:
+    иначе сотрудник узнаёт о заявке, только если сам обновит страницу.
+    """
+    count = await session.scalar(
+        select(func.count(Request.id)).where(
+            Request.tenant_id == staff.tenant_id,
+            Request.status == RequestStatus.NEW,
+        )
+    )
+    return {"new": int(count or 0)}
 
 
 async def _load_request(

@@ -264,6 +264,27 @@ async def test_staff_login_and_claim(http, session, tenant, service, employee):
     assert "В работе" in detail.text
 
 
+async def test_queue_count_requires_login_and_counts_new(http, tenant, service, employee):
+    assert (await http.get("/staff/queue-count")).status_code == 401
+
+    await http.post(
+        f"/staff/{tenant.slug}/login",
+        data={"email": employee.email, "password": "secret123"},
+    )
+    assert (await http.get("/staff/queue-count")).json() == {"new": 0}
+
+    await http.post(
+        f"/api/v1/{tenant.slug}/requests",
+        json={
+            "service_id": str(service.id),
+            "full_name": "Смирнов Алексей",
+            "phone": "+79990000001",
+            "consent": True,
+        },
+    )
+    assert (await http.get("/staff/queue-count")).json() == {"new": 1}
+
+
 async def test_wrong_password_denied(http, tenant, employee):
     response = await http.post(
         f"/staff/{tenant.slug}/login",
@@ -371,7 +392,10 @@ async def test_embed_script_is_served(http, tenant):
     assert "nb-launcher" in response.text
     # Сайт со своими кнопками записи должен уметь открыть виджет сам.
     assert "window.notarybot" in response.text
-    assert 'data-launcher' in response.text
+    assert "data-launcher" in response.text
+    # Адрес виджета скрипт определяет по своему src, а не только по настройке:
+    # иначе при смене домена сервиса iframe будет открываться по старому адресу.
+    assert "new URL(current.src).origin" in response.text
 
 
 async def test_widget_page_renders(http, tenant, service):

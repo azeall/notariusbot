@@ -3,6 +3,11 @@
 <h1>Заявки</h1>
 <p class="lead">Свободные заявки берёт любой сотрудник — кто первым нажал, тот и ведёт.</p>
 
+<div class="callout" id="fresh" hidden>
+  Пришли новые заявки: <b id="fresh-count">0</b>
+  <button type="button" onclick="location.reload()" style="margin-left:12px">Обновить</button>
+</div>
+
 <h2>Ничьи ({{ unclaimed|length }})</h2>
 {% if not unclaimed %}
   <div class="empty">Пусто. Все заявки разобраны.</div>
@@ -38,4 +43,32 @@
     <a class="btn ghost" href="/staff/requests/{{ request.id }}">Открыть</a>
   </div>
 {% endfor %}
+
+<script>
+// Очередь сама сообщает о новых заявках: без этого сотрудник узнаёт о заявке,
+// только если догадается обновить страницу.
+(function () {
+  var known = {{ unclaimed|length }};
+  var banner = document.getElementById('fresh');
+  var counter = document.getElementById('fresh-count');
+  var baseTitle = document.title;
+
+  function check() {
+    fetch('/staff/queue-count', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data) return;
+        var extra = data.new - known;
+        if (extra > 0) {
+          counter.textContent = extra;
+          banner.hidden = false;
+          document.title = '(' + extra + ') ' + baseTitle;
+        }
+      })
+      .catch(function () { /* сеть моргнула — просто ждём следующей проверки */ });
+  }
+
+  setInterval(check, 20000);
+})();
+</script>
 {% endblock %}

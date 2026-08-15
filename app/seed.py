@@ -23,6 +23,14 @@ from app.models import (
 
 DEMO_SLUG = "demo"
 
+# Домены, которым разрешено встраивать виджет. Из них собирается frame-ancestors,
+# поэтому демо-сайт продолжает работать и после пересоздания данных.
+DEMO_ORIGINS = [
+    "https://notarius-wn4h.vercel.app",
+    "https://notarius-wn4h-azealls-projects.vercel.app",
+    "https://notarius-wn4h-azeall-azealls-projects.vercel.app",
+]
+
 # (код, название, режим, минуты, срок, цена, слова для поиска, [(документ, пояснение, обязателен)])
 SERVICES: list[tuple] = [
     (
@@ -159,7 +167,7 @@ async def seed() -> None:
             address="ул. Тверская, д. 1, офис 5",
             phone="+7 495 000-00-00",
             timezone="Europe/Moscow",
-            allowed_origins=[],
+            allowed_origins=DEMO_ORIGINS,
         )
         session.add(tenant)
         await session.flush()

@@ -48,11 +48,19 @@ async def embed_script() -> Response:
 
 _EMBED_TEMPLATE = """
 (function () {
-  var BASE = "__BASE__";
   // currentScript пуст, если тег вставили динамически — так делает next/script,
   // поэтому подстраховываемся поиском по атрибуту.
   var current = document.currentScript || document.querySelector("script[data-notary]");
   if (!current) return;
+
+  // Адрес берём из собственного src: скрипт уже загрузился с нужного домена,
+  // а настройка на сервере может устареть — например, если сменился адрес туннеля.
+  var BASE = "__BASE__";
+  try {
+    BASE = new URL(current.src).origin;
+  } catch (e) {
+    /* остаётся значение из настроек */
+  }
   var slug = current.getAttribute("data-notary");
   if (!slug) {
     console.error("[notarybot] не задан data-notary");
