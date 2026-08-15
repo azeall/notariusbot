@@ -16,7 +16,7 @@ from app.domain.requests import (
 )
 from app.domain.schedule import SlotUnavailable, available_slots, book_slot
 from app.models import Channel, Client, Service, SubmissionMode, Tenant
-from app.web.deps import client_ip, db_session, resolve_tenant
+from app.web.deps import client_ip, db_session, public_base_url, resolve_tenant
 from app.web.schemas import DocumentOut, RequestIn, RequestOut, ServiceOut, SlotOut
 
 router = APIRouter(prefix="/api/v1/{slug}", tags=["widget"])
@@ -185,7 +185,7 @@ async def submit_request(
     upload_url: str | None = None
     if service.submission_mode is SubmissionMode.DOCUMENTS:
         _, token = await issue_upload_token(session, request=request)
-        upload_url = f"{settings.public_base_url}/upload/{token}"
+        upload_url = f"{public_base_url(http_request)}/upload/{token}"
 
     return RequestOut(
         id=request.id,

@@ -10,7 +10,6 @@ from app.domain.requests import claim_request, issue_upload_token, transition_re
 from app.domain.security import hash_password, verify_password
 from app.domain.statuses import STATUS_LABELS, ALLOWED_TRANSITIONS, TransitionError
 from app.domain.storage import DocumentStorage
-from app.config import get_settings
 from app.models import (
     Attachment,
     AuditLog,
@@ -25,6 +24,7 @@ from app.web.deps import (
     current_staff,
     db_session,
     issue_session_cookie,
+    public_base_url,
 )
 
 router = APIRouter(prefix="/staff", tags=["staff"])
@@ -262,13 +262,14 @@ async def change_status(
 @router.post("/requests/{request_id}/upload-link")
 async def new_upload_link(
     request_id: uuid.UUID,
+    http_request: HttpRequest,
     staff: Staff = Depends(current_staff),
     session: AsyncSession = Depends(db_session),
 ):
     """Выдать клиенту новую одноразовую ссылку на догрузку документов."""
     request = await _load_request(session, staff, request_id)
     _, token = await issue_upload_token(session, request=request)
-    url = f"{get_settings().public_base_url}/upload/{token}"
+    url = f"{public_base_url(http_request)}/upload/{token}"
     return RedirectResponse(
         f"/staff/requests/{request_id}?link={url}", status_code=status.HTTP_303_SEE_OTHER
     )

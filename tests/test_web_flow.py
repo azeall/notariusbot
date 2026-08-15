@@ -77,8 +77,46 @@ async def test_submit_request_returns_upload_link(http, session, tenant, service
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["public_number"] == 1
-    assert body["upload_url"].startswith("http://test/upload/")
+    assert body["upload_url"].startswith("https://test/upload/")
     assert len(body["checklist"]) == 3
+
+
+async def test_upload_link_points_at_host_client_used(http, tenant, service):
+    """Ссылка на загрузку ведёт на тот хост, с которого пришёл клиент.
+
+    За туннелем или прокси адрес меняется, а настройка PUBLIC_BASE_URL
+    остаётся старой — тогда клиент получал битую ссылку.
+    """
+    response = await http.post(
+        f"/api/v1/{tenant.slug}/requests",
+        headers={"x-forwarded-host": "abcdef.example.dev", "x-forwarded-proto": "https"},
+        json={
+            "service_id": str(service.id),
+            "full_name": "Смирнов Алексей",
+            "phone": "+79990000001",
+            "consent": True,
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["upload_url"].startswith("https://abcdef.example.dev/upload/")
+
+
+async def test_upload_link_never_downgrades_to_http(http, tenant, service):
+    """Прокси не сообщил схему — публичный адрес всё равно должен быть https.
+
+    По этой ссылке клиент несёт скан паспорта.
+    """
+    response = await http.post(
+        f"/api/v1/{tenant.slug}/requests",
+        headers={"host": "zayavki.example.ru"},
+        json={
+            "service_id": str(service.id),
+            "full_name": "Смирнов Алексей",
+            "phone": "+79990000001",
+            "consent": True,
+        },
+    )
+    assert response.json()["upload_url"].startswith("https://zayavki.example.ru/upload/")
 
 
 async def test_request_without_consent_is_rejected(http, tenant, service):

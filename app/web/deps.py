@@ -73,6 +73,33 @@ async def current_owner(staff: Staff = Depends(current_staff)) -> Staff:
     return staff
 
 
+def public_base_url(request: HttpRequest) -> str:
+    """Публичный адрес сервиса с точки зрения пришедшего запроса.
+
+    Одноразовые ссылки на загрузку обязаны вести на тот же хост, с которого
+    клиент только что общался с нами. Брать его из настройки нельзя: за прокси
+    или туннелем адрес меняется, и настройка протухает — ссылка уходит клиенту
+    битой. Заголовки X-Forwarded-* ставит прокси, поэтому им можно верить
+    ровно настолько, насколько прокси свой.
+    """
+    forwarded_host = request.headers.get("x-forwarded-host", "")
+    host = forwarded_host.split(",")[0].strip() or request.headers.get("host", "")
+    if not host:
+        return get_settings().public_base_url.rstrip("/")
+
+    forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip()
+    if forwarded_proto:
+        scheme = forwarded_proto
+    elif host.split(":")[0] in {"localhost", "127.0.0.1", "::1"}:
+        scheme = request.url.scheme
+    else:
+        # Прокси не сказал схему, а хост не локальный. По этой ссылке клиент
+        # понесёт скан паспорта, поэтому http тут недопустим ни при каких
+        # обстоятельствах — публичный адрес считаем https.
+        scheme = "https"
+    return f"{scheme}://{host}"
+
+
 def client_ip(request: HttpRequest) -> str:
     """IP клиента с учётом обратного прокси."""
     forwarded = request.headers.get("x-forwarded-for", "")
