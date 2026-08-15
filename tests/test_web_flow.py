@@ -369,6 +369,9 @@ async def test_embed_script_is_served(http, tenant):
     assert response.status_code == 200
     assert "data-notary" in response.text
     assert "nb-launcher" in response.text
+    # Сайт со своими кнопками записи должен уметь открыть виджет сам.
+    assert "window.notarybot" in response.text
+    assert 'data-launcher' in response.text
 
 
 async def test_widget_page_renders(http, tenant, service):

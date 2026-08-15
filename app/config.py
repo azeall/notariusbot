@@ -46,6 +46,18 @@ class Settings(BaseSettings):
 
     session_secret: str = "dev-only-session-secret"
 
+    # --- каналы ---
+    # Токен бота от @BotFather. Пустой — бот просто не запускается.
+    telegram_bot_token: str = ""
+    # Токен бота MAX. Пустой — адаптер не запускается.
+    max_bot_token: str = ""
+    max_api_base: str = "https://botapi.max.ru"
+
+    # К какому нотариусу попадает клиент, пришедший без deep-link.
+    # Для одного нотариуса на бота этого достаточно; для многих клиент
+    # приходит по ссылке вида t.me/<bot>?start=<slug>.
+    default_tenant_slug: str = "demo"
+
 
 @lru_cache
 def get_settings() -> Settings:

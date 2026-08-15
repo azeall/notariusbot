@@ -60,6 +60,9 @@ _EMBED_TEMPLATE = """
   }
   var label = current.getAttribute("data-label") || "Записаться к нотариусу";
   var accent = current.getAttribute("data-accent") || "#b89a5a";
+  // data-launcher="none" — не рисовать свою плавающую кнопку. Нужно сайтам,
+  // у которых уже есть собственные кнопки записи: они вызовут notarybot.open().
+  var withLauncher = current.getAttribute("data-launcher") !== "none";
 
   var style = document.createElement("style");
   style.textContent = [
@@ -114,7 +117,11 @@ _EMBED_TEMPLATE = """
     if (event.key === "Escape") hide();
   });
 
-  document.body.appendChild(button);
+  if (withLauncher) document.body.appendChild(button);
   document.body.appendChild(overlay);
+
+  // Публичный интерфейс для сайта: собственные кнопки записи вызывают его сами.
+  window.notarybot = { open: open, close: hide };
+  document.dispatchEvent(new CustomEvent("notarybot:ready"));
 })();
 """
