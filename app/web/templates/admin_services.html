@@ -6,6 +6,14 @@
   у каждой сохранён свой слепок.
 </p>
 
+{% if request.query_params.get('welcome') %}
+  <div class="callout">
+    Кабинет создан. Мы завели типовые услуги и рабочие часы — проверьте их
+    и поправьте под себя, особенно перечни документов и расписание.<br><br>
+    Виджет на сайт: <code>&lt;script src="{{ request.base_url }}embed.js" data-notary="{{ tenant.slug }}" defer&gt;&lt;/script&gt;</code>
+  </div>
+{% endif %}
+
 <div class="actions" style="margin-bottom:18px">
   <a class="btn" href="/admin/services/new">Добавить услугу</a>
 </div>

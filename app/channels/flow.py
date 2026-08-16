@@ -136,6 +136,56 @@ def render_confirmation(request: Request, upload_url: str | None, tz: str) -> st
 # --- действия ---------------------------------------------------------------
 
 
+STATUS_FOR_CLIENT = {
+    "new": "принята, ждёт сотрудника",
+    "claimed": "в работе",
+    "awaiting_documents": "ждём документы от вас",
+    "awaiting_visit": "записаны на приём",
+    "completed": "завершена",
+    "rejected": "отклонена",
+    "cancelled": "отменена",
+}
+
+
+async def my_requests(
+    session: AsyncSession, *, tenant: Tenant, channel: Channel, external_id: str, limit: int = 5
+) -> list[Request]:
+    """Последние обращения этого человека — чтобы он не звонил «а что там у меня»."""
+    client = await session.scalar(
+        select(Client).where(
+            Client.tenant_id == tenant.id,
+            Client.channel == channel,
+            Client.external_id == external_id,
+        )
+    )
+    if client is None:
+        return []
+
+    # Сортируем по номеру, а не по времени: несколько заявок могут быть созданы
+    # в одну секунду, и тогда порядок по времени становится случайным.
+    result = await session.scalars(
+        select(Request)
+        .where(Request.client_id == client.id)
+        .order_by(Request.public_number.desc())
+        .limit(limit)
+    )
+    return list(result)
+
+
+def render_my_requests(requests: list[Request]) -> str:
+    if not requests:
+        return "У вас пока нет заявок. Напишите, что нужно, и я приму первую."
+
+    lines = ["Ваши последние заявки:"]
+    for request in requests:
+        lines.append("")
+        lines.append(f"№ {request.public_number} · {request.service_title}")
+        lines.append(f"Статус: {STATUS_FOR_CLIENT.get(request.status.value, request.status.value)}")
+        if request.preferred_time_note:
+            lines.append(f"Приём: {request.preferred_time_note}")
+    return "\n".join(lines)
+
+
 async def resolve_tenant(session: AsyncSession, slug: str) -> Tenant | None:
     return await session.scalar(
         select(Tenant).where(Tenant.slug == slug, Tenant.is_active.is_(True))

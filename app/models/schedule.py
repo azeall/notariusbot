@@ -75,6 +75,16 @@ class Appointment(Base, UUIDPrimaryKey, TenantScoped, Timestamps):
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     is_cancelled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # Когда клиенту напомнили. Два отдельных столбца, а не счётчик: рассылка
+    # запускается по расписанию и должна уметь пропустить уже отправленное,
+    # даже если запуск повторился.
+    reminded_day_before_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    reminded_same_day_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     request: Mapped["Request"] = relationship()  # noqa: F821
 
     def __repr__(self) -> str:

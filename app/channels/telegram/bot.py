@@ -224,8 +224,27 @@ async def help_command(message: Message) -> None:
     await message.answer(
         "Напишите, что нужно — например «согласие на выезд ребёнка». "
         "Я подскажу перечень документов и приму заявку.\n\n"
+        "/my — мои заявки\n"
         "/start — начать заново"
     )
+
+
+@dispatcher.message(Command("my"))
+async def my_requests_command(message: Message, state: FSMContext) -> None:
+    """Статус заявок. Без этого человек звонит нотариусу, чтобы просто спросить."""
+    draft = await _draft(state)
+    async with get_sessionmaker()() as session:
+        tenant = await _tenant(session, draft)
+        if tenant is None:
+            await message.answer("Напишите /start, чтобы начать.")
+            return
+        requests = await flow.my_requests(
+            session,
+            tenant=tenant,
+            channel=Channel.TELEGRAM,
+            external_id=str(message.chat.id),
+        )
+    await message.answer(flow.render_my_requests(requests))
 
 
 @dispatcher.callback_query(F.data == "all")

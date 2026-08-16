@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.models import Request, Staff, SubmissionMode
+from app.models import Channel, Client, Request, Staff, SubmissionMode
 
 log = logging.getLogger(__name__)
 
@@ -54,6 +54,18 @@ async def _send(chat_id: str, text: str) -> bool:
     except Exception:
         log.exception("Не удалось отправить уведомление в Telegram")
         return False
+
+
+async def send_to_channel(client: Client, text: str) -> bool:
+    """Написать клиенту в тот канал, из которого он пришёл.
+
+    Из виджета человек приходит без чата, поэтому отправить ему нечего —
+    это не ошибка, просто с ним свяжется сотрудник.
+    """
+    if client.channel is Channel.TELEGRAM and client.external_id:
+        return await _send(client.external_id, text)
+    # MAX подключается здесь же, когда канал заработает.
+    return False
 
 
 async def notify_new_request(
