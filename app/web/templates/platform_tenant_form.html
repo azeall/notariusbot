@@ -1,0 +1,88 @@
+{% extends "base_panel.html" %}
+{% block content %}
+<div class="topbar" style="margin:-26px -28px 26px">
+  <div class="brand">Сервис заявок</div>
+  <nav><a href="/platform">Нотариусы</a></nav>
+  <span class="who">{{ admin.full_name or admin.email }}</span>
+</div>
+
+<h1>{{ 'Подключить нотариуса' if not tenant else 'Карточка нотариуса' }}</h1>
+
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+<form method="post" action="/platform/tenants">
+  <input type="hidden" name="tenant_id" value="{{ tenant.id if tenant else '' }}">
+
+  <label class="field">
+    <span class="cap">Как нотариуса увидит клиент</span>
+    <input type="text" name="display_name" required
+           placeholder="Нотариус Иванов Иван Иванович"
+           value="{{ tenant.display_name if tenant else '' }}">
+  </label>
+
+  <div class="grid2">
+    <label class="field">
+      <span class="cap">Короткий код</span>
+      <input type="text" name="slug" placeholder="ivanov"
+             value="{{ tenant.slug if tenant else '' }}">
+      <span class="note">Латиницей. Попадёт в адрес виджета и в ссылку бота.</span>
+    </label>
+    <label class="field">
+      <span class="cap">Часовой пояс</span>
+      <input type="text" name="timezone"
+             value="{{ tenant.timezone if tenant else 'Europe/Moscow' }}">
+    </label>
+  </div>
+
+  <div class="grid2">
+    <label class="field">
+      <span class="cap">Город</span>
+      <input type="text" name="city" value="{{ tenant.city if tenant else '' }}">
+    </label>
+    <label class="field">
+      <span class="cap">Телефон</span>
+      <input type="text" name="phone" value="{{ tenant.phone if tenant else '' }}">
+    </label>
+  </div>
+
+  <label class="field">
+    <span class="cap">Адрес приёма</span>
+    <input type="text" name="address" value="{{ tenant.address if tenant else '' }}">
+    <span class="note">Попадёт в напоминание о визите.</span>
+  </label>
+
+  <label class="field">
+    <span class="cap">Сайты, где можно встраивать виджет</span>
+    <textarea name="allowed_origins" spellcheck="false"
+              placeholder="https://notarius-ivanov.ru">{{ tenant.allowed_origins | join('\n') if tenant else '' }}</textarea>
+    <span class="note">
+      По одному адресу в строке, со схемой. Пусто — встраивать можно откуда угодно;
+      так удобно на старте, но для боевого нотариуса лучше перечислить его сайты.
+    </span>
+  </label>
+
+  {% if tenant %}
+    <label class="field">
+      <input type="checkbox" name="is_active" value="1" {% if tenant.is_active %}checked{% endif %}>
+      Обслуживается
+    </label>
+  {% endif %}
+
+  <div class="actions">
+    <button type="submit">Сохранить</button>
+    <a class="btn ghost" href="/platform">Отмена</a>
+  </div>
+</form>
+
+{% if tenant %}
+  <h2>Подключение виджета</h2>
+  <div class="callout">
+    Одна строка перед <code>&lt;/body&gt;</code> на сайте нотариуса:<br><br>
+    <code>&lt;script src="{{ request.base_url }}embed.js" data-notary="{{ tenant.slug }}" defer&gt;&lt;/script&gt;</code>
+    <div style="margin-top:10px;color:var(--slate);font-size:12.5px">
+      Если у сайта уже есть своя кнопка записи, добавьте
+      <code>data-launcher="none"</code> и вызывайте <code>window.notarybot.open()</code>.
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

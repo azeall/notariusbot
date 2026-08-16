@@ -1,5 +1,6 @@
+from datetime import datetime
 
-from sqlalchemy import Boolean, String, Text
+from sqlalchemy import Boolean, DateTime, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -27,6 +28,24 @@ class Tenant(Base, UUIDPrimaryKey, Timestamps):
     allowed_origins: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Приглашение нотариусу: владелец сервиса заводит карточку, а почту и пароль
+    # нотариус задаёт сам по ссылке. В базе только хеш — по нему ссылку
+    # не восстановить, как и в случае с загрузкой документов.
+    invite_token_hash: Mapped[str | None] = mapped_column(
+        String(64), unique=True, nullable=True, index=True
+    )
+    invite_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    invite_accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    @property
+    def is_activated(self) -> bool:
+        """Нотариус завёл вход и может работать."""
+        return self.invite_accepted_at is not None
 
     staff: Mapped[list["Staff"]] = relationship(  # noqa: F821
         back_populates="tenant", cascade="all, delete-orphan"

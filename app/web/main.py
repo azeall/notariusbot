@@ -42,12 +42,12 @@ def create_app() -> FastAPI:
 
     app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
 
-    from app.web import admin, pages, signup, staff, uploads, widget
+    from app.web import admin, pages, platform, staff, uploads, widget
 
     app.include_router(widget.router)
     app.include_router(pages.router)
     app.include_router(uploads.router)
-    app.include_router(signup.router)
+    app.include_router(platform.router)
     app.include_router(staff.router)
     app.include_router(admin.router)
 
@@ -67,8 +67,8 @@ def create_app() -> FastAPI:
             "<p style='color:#8a9ab5;font-size:14px'>"
             "Виджет: <code>/widget/&lt;код нотариуса&gt;</code> · "
             "Панель: <code>/staff/&lt;код нотариуса&gt;/login</code></p>"
-            "<p style='margin-top:22px'><a href='/signup' style='color:#b89a5a'>"
-            "Подключить нотариуса</a></p>"
+            "<p style='margin-top:22px'><a href='/platform' style='color:#b89a5a'>"
+            "Кабинет владельца сервиса</a></p>"
             "</div></body>"
         )
 

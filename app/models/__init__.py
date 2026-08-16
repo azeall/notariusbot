@@ -10,6 +10,7 @@ from app.models.enums import (
     StaffRole,
     SubmissionMode,
 )
+from app.models.platform import PlatformAdmin
 from app.models.request import Request, RequestEvent
 from app.models.schedule import Appointment, DayOff, WorkingHours
 from app.models.staff import Staff
@@ -24,6 +25,7 @@ __all__ = [
     "Channel",
     "Client",
     "DayOff",
+    "PlatformAdmin",
     "Request",
     "RequestEvent",
     "RequestStatus",

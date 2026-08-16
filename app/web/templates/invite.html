@@ -1,0 +1,33 @@
+{% extends "base_panel.html" %}
+{% block content %}
+<div class="login">
+  <h1>{{ tenant.display_name }}</h1>
+  <p class="lead">
+    Осталось задать вход в кабинет. Услуги, перечни документов и расписание
+    уже заведены — потом поправите под себя.
+  </p>
+
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+  <form method="post" action="/invite/{{ token }}">
+    <label class="field">
+      <span class="cap">Фамилия и имя</span>
+      <input type="text" name="full_name" required autocomplete="name">
+    </label>
+    <label class="field">
+      <span class="cap">Рабочая почта</span>
+      <input type="email" name="email" required autocomplete="username">
+    </label>
+    <label class="field">
+      <span class="cap">Пароль (от 8 символов)</span>
+      <input type="password" name="password" required minlength="8"
+             autocomplete="new-password">
+    </label>
+    <button type="submit" style="width:100%">Создать вход</button>
+  </form>
+
+  <p class="lead" style="margin-top:16px;font-size:12.5px">
+    Эта ссылка одноразовая. После создания входа она перестанет работать.
+  </p>
+</div>
+{% endblock %}

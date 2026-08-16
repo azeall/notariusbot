@@ -5,13 +5,14 @@
 """
 
 import asyncio
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
 from app.db import dispose_engine, get_sessionmaker
 from app.domain.security import hash_password
 from app.domain.starter import create_default_schedule, create_starter_catalog
-from app.models import Staff, StaffRole, Tenant
+from app.models import PlatformAdmin, Staff, StaffRole, Tenant
 
 DEMO_SLUG = "demo"
 
@@ -24,9 +25,27 @@ DEMO_ORIGINS = [
 ]
 
 
+PLATFORM_EMAIL = "admin@notarybot.ru"
+PLATFORM_PASSWORD = "admin12345"
+
+
 async def seed() -> None:
     maker = get_sessionmaker()
     async with maker() as session:
+        # Владелец сервиса — тот, кто подключает нотариусов.
+        admin = await session.scalar(
+            select(PlatformAdmin).where(PlatformAdmin.email == PLATFORM_EMAIL)
+        )
+        if admin is None:
+            session.add(
+                PlatformAdmin(
+                    email=PLATFORM_EMAIL,
+                    password_hash=hash_password(PLATFORM_PASSWORD),
+                    full_name="Владелец сервиса",
+                )
+            )
+            await session.commit()
+
         existing = await session.scalar(select(Tenant).where(Tenant.slug == DEMO_SLUG))
         if existing is not None:
             await session.delete(existing)
@@ -41,6 +60,8 @@ async def seed() -> None:
             timezone="Europe/Moscow",
             allowed_origins=DEMO_ORIGINS,
         )
+        # Демо-нотариус считается уже принявшим приглашение: у него есть вход.
+        tenant.invite_accepted_at = datetime.now(UTC)
         session.add(tenant)
         await session.flush()
 
@@ -76,6 +97,9 @@ async def seed() -> None:
     print(f"Панель сотрудника:   /staff/{DEMO_SLUG}/login")
     print("  владелец:  owner@demo.ru / demo12345")
     print("  сотрудник: helper@demo.ru / demo12345")
+    print()
+    print("Кабинет владельца сервиса: /platform/login")
+    print(f"  {PLATFORM_EMAIL} / {PLATFORM_PASSWORD}")
 
 
 if __name__ == "__main__":

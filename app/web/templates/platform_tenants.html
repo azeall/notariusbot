@@ -1,0 +1,65 @@
+{% extends "base_panel.html" %}
+{% block content %}
+<div class="topbar" style="margin:-26px -28px 26px">
+  <div class="brand">Сервис заявок</div>
+  <nav><a href="/platform">Нотариусы</a></nav>
+  <span class="who">{{ admin.full_name or admin.email }}</span>
+  <form method="post" action="/platform/logout" style="margin:0">
+    <button class="ghost" type="submit">Выйти</button>
+  </form>
+</div>
+
+<h1>Нотариусы</h1>
+<p class="lead">
+  Заводите карточку и отправляйте нотариусу ссылку — он задаст почту и пароль сам
+  и попадёт в свой кабинет.
+</p>
+
+{% if http_request.query_params.get('token') %}
+  {% set slug = http_request.query_params.get('invited') %}
+  <div class="callout">
+    Ссылка для нотариуса <b>{{ slug }}</b>. Отправьте её любым способом,
+    она действует 14 дней и сработает один раз:<br><br>
+    <code>{{ base }}/invite/{{ http_request.query_params.get('token') }}</code>
+    <div style="margin-top:10px;color:var(--slate);font-size:12.5px">
+      Показывается только сейчас — в базе хранится лишь её отпечаток.
+      Потеряли — выдайте новую, прежняя перестанет работать.
+    </div>
+  </div>
+{% endif %}
+
+<div class="actions" style="margin-bottom:18px">
+  <a class="btn" href="/platform/new">Подключить нотариуса</a>
+</div>
+
+{% if not tenants %}
+  <div class="empty">Пока никого. Начните с первого.</div>
+{% endif %}
+
+{% for tenant in tenants %}
+  <div class="card row">
+    <div class="grow">
+      <div class="t">
+        {{ tenant.display_name }}
+        {% if not tenant.is_active %}<span class="badge closed">отключён</span>{% endif %}
+        {% if tenant.is_activated %}
+          <span class="badge">вход создан</span>
+        {% else %}
+          <span class="badge new">ждёт активации</span>
+        {% endif %}
+      </div>
+      <div class="m">
+        код: {{ tenant.slug }}
+        {%- if tenant.city %} · {{ tenant.city }}{% endif %}
+        · виджет: {{ base }}/widget/{{ tenant.slug }}
+      </div>
+    </div>
+    <a class="btn ghost" href="/platform/tenants/{{ tenant.id }}">Изменить</a>
+    <form method="post" action="/platform/tenants/{{ tenant.id }}/invite" style="margin:0">
+      <button class="ghost" type="submit">
+        {{ 'Новая ссылка' if tenant.is_activated else 'Ссылка для входа' }}
+      </button>
+    </form>
+  </div>
+{% endfor %}
+{% endblock %}

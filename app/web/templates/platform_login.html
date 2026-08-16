@@ -1,0 +1,21 @@
+{% extends "base_panel.html" %}
+{% block content %}
+<div class="login">
+  <h1>Сервис заявок</h1>
+  <p class="lead">Кабинет владельца сервиса</p>
+
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+  <form method="post" action="/platform/login">
+    <label class="field">
+      <span class="cap">Почта</span>
+      <input type="email" name="email" required autocomplete="username">
+    </label>
+    <label class="field">
+      <span class="cap">Пароль</span>
+      <input type="password" name="password" required autocomplete="current-password">
+    </label>
+    <button type="submit" style="width:100%">Войти</button>
+  </form>
+</div>
+{% endblock %}
