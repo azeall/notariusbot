@@ -1,0 +1,219 @@
+/* Современный минимализм: почти чёрно-белое, один акцент, много воздуха.
+   Декора намеренно нет — работает типографика и отступы. */
+
+:root {
+  --ink: #0b0b0d;
+  --paper: #ffffff;
+  --muted: #6b6f76;
+  --line: #e6e7ea;
+  --accent: #2f5bea;
+  --wash: #f6f7f9;
+
+  --step: clamp(1rem, 0.6rem + 1.4vw, 1.125rem);
+  --gap: clamp(56px, 8vw, 120px);
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: var(--step)/1.6 system-ui, -apple-system, "Segoe UI", Inter, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.011em;
+}
+
+h1, h2, h3 { letter-spacing: -0.03em; line-height: 1.08; margin: 0; font-weight: 600; }
+
+h1 { font-size: clamp(2.6rem, 1.4rem + 5.2vw, 5rem); }
+h2 { font-size: clamp(1.75rem, 1.1rem + 2.4vw, 2.75rem); margin-bottom: 42px; }
+h3 { font-size: 1.0625rem; font-weight: 600; margin-bottom: 8px; }
+
+p { margin: 0; }
+
+a { color: inherit; }
+
+/* --- шапка --- */
+
+.top {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; gap: 32px;
+  padding: 18px clamp(20px, 5vw, 64px);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+
+.mark {
+  font-weight: 650; letter-spacing: -0.04em; font-size: 1.0625rem;
+  text-decoration: none; margin-right: auto;
+}
+.mark span { color: var(--accent); }
+
+.top nav { display: flex; gap: 26px; }
+.top nav a {
+  text-decoration: none; color: var(--muted); font-size: 0.9375rem;
+  transition: color 0.15s;
+}
+.top nav a:hover { color: var(--ink); }
+
+@media (max-width: 720px) { .top nav { display: none; } }
+
+/* --- кнопки --- */
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 14px 24px;
+  background: var(--ink); color: var(--paper);
+  border-radius: 999px;
+  text-decoration: none;
+  font-size: 0.9375rem; font-weight: 550;
+  transition: transform 0.12s, background 0.15s;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--accent); }
+.btn:active { transform: translateY(1px); }
+
+.btn.small { padding: 9px 18px; font-size: 0.875rem; }
+
+.btn.ghost {
+  background: transparent; color: var(--ink);
+  border: 1px solid var(--line);
+}
+.btn.ghost:hover { background: var(--wash); border-color: var(--ink); }
+
+/* --- секции --- */
+
+main { display: block; }
+
+section { padding: var(--gap) clamp(20px, 5vw, 64px); }
+
+.block { max-width: 1120px; margin: 0 auto; }
+.block.alt { background: var(--wash); max-width: none; }
+.block.alt > * { max-width: 1120px; margin-inline: auto; }
+
+.hero {
+  max-width: 1120px; margin: 0 auto;
+  padding-top: clamp(64px, 11vw, 150px);
+  padding-bottom: clamp(48px, 7vw, 96px);
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-size: 0.8125rem; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  margin-bottom: 22px;
+}
+
+.lead {
+  color: var(--muted);
+  font-size: clamp(1.0625rem, 0.9rem + 0.6vw, 1.3125rem);
+  line-height: 1.55;
+  max-width: 34em;
+  margin-top: 28px;
+}
+
+.lead.narrow { max-width: 30em; }
+
+.cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 40px; }
+
+/* --- полоса с тремя тезисами --- */
+
+.strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1px;
+  max-width: 1120px; margin: 0 auto;
+  padding: 0 clamp(20px, 5vw, 64px) var(--gap);
+}
+
+.strip div {
+  border-top: 1px solid var(--line);
+  padding: 22px 0 0;
+}
+.strip b { display: block; font-weight: 600; margin-bottom: 4px; }
+.strip span { color: var(--muted); font-size: 0.9375rem; }
+
+@media (min-width: 760px) {
+  .strip { gap: 0 40px; }
+}
+
+/* --- шаги --- */
+
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+
+.steps li {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 24px;
+  padding: 32px 0;
+  border-top: 1px solid var(--line);
+}
+
+.steps li:last-child { border-bottom: 1px solid var(--line); }
+
+.num {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.875rem; font-weight: 600;
+  letter-spacing: 0.04em;
+  padding-top: 3px;
+}
+
+.steps p { color: var(--muted); max-width: 46em; }
+
+@media (max-width: 640px) {
+  .steps li { grid-template-columns: 1fr; gap: 10px; }
+}
+
+/* --- сетка возможностей --- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 40px 48px;
+}
+
+.grid article { border-top: 1px solid var(--line); padding-top: 20px; }
+.grid p { color: var(--muted); font-size: 0.9688rem; }
+
+/* --- цитата --- */
+
+.quote { background: var(--ink); color: var(--paper); }
+
+.quote blockquote {
+  max-width: 900px; margin: 0 auto;
+  font-size: clamp(1.35rem, 0.9rem + 2vw, 2.25rem);
+  line-height: 1.28;
+  letter-spacing: -0.025em;
+  font-weight: 500;
+}
+
+/* --- мелкий шрифт и подвал --- */
+
+.fineprint {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  max-width: 40em;
+  margin-top: 40px;
+  line-height: 1.5;
+}
+
+footer {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 20px; flex-wrap: wrap;
+  padding: 28px clamp(20px, 5vw, 64px);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+footer a { text-decoration: none; }
+footer a:hover { color: var(--ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
