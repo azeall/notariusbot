@@ -9,6 +9,7 @@ import uuid
 from datetime import datetime
 
 from aiogram import Bot, Dispatcher, F
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -83,6 +84,52 @@ def phone_keyboard() -> ReplyKeyboardMarkup:
         resize_keyboard=True,
         one_time_keyboard=True,
     )
+
+
+async def _replace(
+    callback: CallbackQuery,
+    text: str,
+    markup: InlineKeyboardMarkup | None = None,
+    parse_mode: str | None = None,
+) -> None:
+    """Перерисовать сообщение на месте вместо отправки нового.
+
+    Иначе после каждой кнопки в чате остаётся мёртвый экран с уже нажатыми
+    кнопками, и к концу разговора человек листает десяток таких.
+    """
+    try:
+        await callback.message.edit_text(text, reply_markup=markup, parse_mode=parse_mode)
+    except TelegramBadRequest:
+        # Сообщение слишком старое для правки или текст совпал с прежним.
+        await callback.message.answer(text, reply_markup=markup, parse_mode=parse_mode)
+
+
+async def _prompt(
+    message: Message,
+    state: FSMContext,
+    text: str,
+    markup: InlineKeyboardMarkup | ReplyKeyboardMarkup | None = None,
+) -> None:
+    """Задать очередной вопрос, убрав предыдущий: в чате остаётся один активный."""
+    data = await state.get_data()
+    previous = data.get("prompt_id")
+    if previous:
+        try:
+            await message.bot.delete_message(message.chat.id, previous)
+        except TelegramBadRequest:
+            pass  # уже удалено или прошло больше 48 часов
+
+    sent = await message.answer(text, reply_markup=markup)
+    await state.update_data(prompt_id=sent.message_id)
+
+
+async def _drop_reply_keyboard(message: Message) -> None:
+    """Убрать нижнюю клавиатуру, не оставляя ради этого сообщения в чате."""
+    try:
+        temp = await message.answer("…", reply_markup=ReplyKeyboardRemove())
+        await message.bot.delete_message(message.chat.id, temp.message_id)
+    except TelegramBadRequest:
+        pass
 
 
 async def _draft(state: FSMContext) -> flow.Draft:
@@ -164,9 +211,11 @@ async def _begin(message: Message, state: FSMContext, slug: str) -> None:
 
     await _save(state, flow.Draft(tenant_slug=slug))
     await state.set_state(Talk.choosing_service)
-    await message.answer(
+    await _prompt(
+        message,
+        state,
         f"{tenant.display_name}\n\n{flow.GREETING}",
-        reply_markup=services_keyboard(services[:8]),
+        services_keyboard(services[:8]),
     )
 
 
@@ -186,9 +235,8 @@ async def show_all(callback: CallbackQuery, state: FSMContext) -> None:
         tenant = await _tenant(session, draft)
         services = await flow.find_services(session, tenant, "")
     await state.set_state(Talk.choosing_service)
-    await callback.message.answer(
-        "Выберите услугу:", reply_markup=services_keyboard(services[:12])
-    )
+    await _replace(callback, "Выберите услугу:", services_keyboard(services[:12]))
+    await state.update_data(prompt_id=callback.message.message_id)
     await callback.answer()
 
 
@@ -200,11 +248,11 @@ async def search(message: Message, state: FSMContext) -> None:
         services = await flow.find_services(session, tenant, message.text)
 
     if not services:
-        await message.answer(flow.NOT_FOUND, reply_markup=services_keyboard([]))
+        await _prompt(message, state, flow.NOT_FOUND, services_keyboard([]))
         return
 
-    await message.answer(
-        "Вот что подходит. Выберите нужное:", reply_markup=services_keyboard(services)
+    await _prompt(
+        message, state, "Вот что подходит. Выберите нужное:", services_keyboard(services)
     )
 
 
@@ -223,9 +271,8 @@ async def show_service(callback: CallbackQuery, state: FSMContext) -> None:
 
     draft.service_id = service_id
     await _save(state, draft)
-    await callback.message.answer(
-        text, parse_mode="Markdown", reply_markup=confirm_keyboard(service_id)
-    )
+    await _replace(callback, text, confirm_keyboard(service_id), parse_mode="Markdown")
+    await state.update_data(prompt_id=callback.message.message_id)
     await callback.answer()
 
 
@@ -235,7 +282,8 @@ async def begin_request(callback: CallbackQuery, state: FSMContext) -> None:
     draft.service_id = uuid.UUID(callback.data.split(":", 1)[1])
     await _save(state, draft)
     await state.set_state(Talk.entering_name)
-    await callback.message.answer(flow.ASK_NAME)
+    await _replace(callback, flow.ASK_NAME)
+    await state.update_data(prompt_id=callback.message.message_id)
     await callback.answer()
 
 
@@ -243,13 +291,13 @@ async def begin_request(callback: CallbackQuery, state: FSMContext) -> None:
 async def got_name(message: Message, state: FSMContext) -> None:
     name = " ".join(message.text.split())
     if len(name) < 2:
-        await message.answer("Слишком коротко. Напишите фамилию и имя.")
+        await _prompt(message, state, "Слишком коротко. Напишите фамилию и имя.")
         return
     draft = await _draft(state)
     draft.full_name = name[:255]
     await _save(state, draft)
     await state.set_state(Talk.entering_phone)
-    await message.answer(flow.ASK_PHONE, reply_markup=phone_keyboard())
+    await _prompt(message, state, flow.ASK_PHONE, phone_keyboard())
 
 
 @dispatcher.message(Talk.entering_phone, F.contact)
@@ -265,23 +313,24 @@ async def got_phone_text(message: Message, state: FSMContext) -> None:
 async def _accept_phone(message: Message, state: FSMContext, raw: str) -> None:
     digits = "".join(ch for ch in raw if ch.isdigit())
     if len(digits) < 10:
-        await message.answer("Номер выглядит неполным. Пришлите ещё раз.")
+        await _prompt(message, state, "Номер выглядит неполным. Пришлите ещё раз.", phone_keyboard())
         return
 
     draft = await _draft(state)
     draft.phone = raw.strip()[:32]
     await _save(state, draft)
     await state.set_state(Talk.giving_consent)
-    await message.answer("Принято.", reply_markup=ReplyKeyboardRemove())
-    await message.answer(flow.ASK_CONSENT, reply_markup=consent_keyboard())
+    await _drop_reply_keyboard(message)
+    await _prompt(message, state, flow.ASK_CONSENT, consent_keyboard())
 
 
 @dispatcher.callback_query(F.data == "consent:no")
 async def consent_declined(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
-    await callback.message.answer(
+    await _replace(
+        callback,
         "Хорошо. Без согласия оформить заявку нельзя, но вы всегда можете "
-        "позвонить нотариусу напрямую.\n\n/start — начать заново"
+        "позвонить нотариусу напрямую.\n\n/start — начать заново",
     )
     await callback.answer()
 
@@ -301,20 +350,16 @@ async def consent_given(callback: CallbackQuery, state: FSMContext) -> None:
 
         if service.submission_mode is SubmissionMode.VISIT:
             slots = await flow.offered_slots(session, tenant, service)
-            if not slots:
-                await callback.message.answer(
-                    "Свободного времени на ближайшие две недели нет. "
-                    "Оставьте заявку — сотрудник свяжется и подберёт время."
-                )
-            else:
+            if slots:
                 await state.set_state(Talk.choosing_slot)
-                await callback.message.answer(
-                    "Выберите удобное время приёма:", reply_markup=slots_keyboard(slots)
+                await _replace(
+                    callback, "Выберите удобное время приёма:", slots_keyboard(slots)
                 )
+                await state.update_data(prompt_id=callback.message.message_id)
                 await callback.answer()
                 return
 
-    await _finish(callback.message, state)
+    await _finish(callback, state)
     await callback.answer()
 
 
@@ -323,13 +368,13 @@ async def slot_chosen(callback: CallbackQuery, state: FSMContext) -> None:
     draft = await _draft(state)
     draft.slot = datetime.fromisoformat(callback.data.split(":", 1)[1])
     await _save(state, draft)
-    await _finish(callback.message, state)
+    await _finish(callback, state)
     await callback.answer()
 
 
-async def _finish(message: Message, state: FSMContext) -> None:
+async def _finish(callback: CallbackQuery, state: FSMContext) -> None:
     draft = await _draft(state)
-    external_id = str(message.chat.id)
+    external_id = str(callback.message.chat.id)
 
     async with get_sessionmaker()() as session:
         tenant = await _tenant(session, draft)
@@ -343,13 +388,15 @@ async def _finish(message: Message, state: FSMContext) -> None:
             )
         except flow.FlowError as exc:
             await session.rollback()
-            await message.answer(str(exc))
+            await _replace(callback, str(exc))
             return
         await session.commit()
         text = flow.render_confirmation(request, upload_url, tenant.timezone)
 
     await state.clear()
-    await message.answer(text, disable_web_page_preview=True)
+    # Итог остаётся в чате единственным сообщением разговора — в нём ссылка
+    # на загрузку и номер заявки, они понадобятся клиенту позже.
+    await _replace(callback, text)
 
 
 @dispatcher.message(F.text)
@@ -364,10 +411,10 @@ async def fallback(message: Message, state: FSMContext) -> None:
         services = await flow.find_services(session, tenant, message.text)
 
     if not services:
-        await message.answer(flow.NOT_FOUND, reply_markup=services_keyboard([]))
+        await _prompt(message, state, flow.NOT_FOUND, services_keyboard([]))
         return
     await state.set_state(Talk.choosing_service)
-    await message.answer("Вот что подходит:", reply_markup=services_keyboard(services))
+    await _prompt(message, state, "Вот что подходит:", services_keyboard(services))
 
 
 def build_bot() -> Bot:
