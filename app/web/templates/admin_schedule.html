@@ -35,4 +35,42 @@
 
   <div class="actions"><button type="submit">Сохранить расписание</button></div>
 </form>
+
+<h2>Праздники и выходные</h2>
+<p class="lead">
+  Разовые дни, когда приёма нет. Перекрывают обычное расписание — в эти дни
+  клиент не увидит свободных окон.
+</p>
+
+{% if not days_off %}
+  <div class="empty">Ближайших выходных не отмечено.</div>
+{% endif %}
+
+{% for row in days_off %}
+  <div class="card row">
+    <div class="grow">
+      <div class="t">{{ row.day.strftime('%d.%m.%Y') }}</div>
+      {% if row.reason %}<div class="m">{{ row.reason }}</div>{% endif %}
+    </div>
+    <form method="post" action="/admin/schedule/days-off/{{ row.id }}/delete" style="margin:0">
+      <button class="danger" type="submit">Убрать</button>
+    </form>
+  </div>
+{% endfor %}
+
+<div class="card">
+  <form method="post" action="/admin/schedule/days-off">
+    <div class="grid2">
+      <label class="field">
+        <span class="cap">Дата</span>
+        <input type="date" name="day" required min="{{ today }}">
+      </label>
+      <label class="field">
+        <span class="cap">Причина (необязательно)</span>
+        <input type="text" name="reason" placeholder="Праздник, отпуск">
+      </label>
+    </div>
+    <button type="submit">Добавить выходной</button>
+  </form>
+</div>
 {% endblock %}

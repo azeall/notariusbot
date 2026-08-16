@@ -54,6 +54,8 @@ class Settings(BaseSettings):
     # --- каналы ---
     # Токен бота от @BotFather. Пустой — бот просто не запускается.
     telegram_bot_token: str = ""
+    # Имя бота без @ — из него собирается ссылка привязки для сотрудника.
+    telegram_bot_username: str = "notariustbot"
     # Токен бота MAX. Пустой — адаптер не запускается.
     max_bot_token: str = ""
     max_api_base: str = "https://botapi.max.ru"

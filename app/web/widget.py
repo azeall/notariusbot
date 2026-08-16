@@ -16,6 +16,7 @@ from app.domain.requests import (
 )
 from app.domain.schedule import SlotUnavailable, available_slots, book_slot
 from app.models import Channel, Client, Service, SubmissionMode, Tenant
+from app.notifications import notify_new_request
 from app.web.deps import client_ip, db_session, public_base_url, resolve_tenant
 from app.web.schemas import DocumentOut, RequestIn, RequestOut, ServiceOut, SlotOut
 
@@ -186,6 +187,15 @@ async def submit_request(
     if service.submission_mode is SubmissionMode.DOCUMENTS:
         _, token = await issue_upload_token(session, request=request)
         upload_url = f"{public_base_url(http_request)}/upload/{token}"
+
+    # Уведомление идёт последним: заявка уже создана, и сбой Telegram
+    # не должен её отменить.
+    await notify_new_request(
+        session,
+        request=request,
+        client_name=client.full_name,
+        client_phone=client.phone,
+    )
 
     return RequestOut(
         id=request.id,

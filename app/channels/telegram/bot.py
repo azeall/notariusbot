@@ -21,12 +21,13 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
 )
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.channels import flow
 from app.config import get_settings
 from app.db import get_sessionmaker
-from app.models import Channel, SubmissionMode
+from app.models import Channel, Staff, SubmissionMode
 
 log = logging.getLogger(__name__)
 dispatcher = Dispatcher()
@@ -105,10 +106,46 @@ async def _tenant(session: AsyncSession, draft: flow.Draft):
 
 @dispatcher.message(CommandStart(deep_link=True))
 async def start_with_link(message: Message, command: CommandObject, state: FSMContext) -> None:
-    """Приход по ссылке t.me/<bot>?start=<код нотариуса>."""
+    """Приход по ссылке t.me/<bot>?start=<полезная нагрузка>.
+
+    Клиент приходит с кодом нотариуса, сотрудник — с кодом привязки `link_…`.
+    """
     await state.clear()
-    slug = (command.args or "").strip() or get_settings().default_tenant_slug
-    await _begin(message, state, slug)
+    payload = (command.args or "").strip()
+
+    if payload.startswith("link_"):
+        await _link_staff(message, payload[len("link_") :])
+        return
+
+    await _begin(message, state, payload or get_settings().default_tenant_slug)
+
+
+async def _link_staff(message: Message, code: str) -> None:
+    """Привязать чат сотрудника, чтобы слать ему уведомления о заявках."""
+    if not code:
+        await message.answer("Код привязки пустой. Попросите новую ссылку.")
+        return
+
+    async with get_sessionmaker()() as session:
+        staff = await session.scalar(
+            select(Staff).where(Staff.telegram_link_code == code, Staff.is_active.is_(True))
+        )
+        if staff is None:
+            await message.answer(
+                "Код не подошёл — вероятно, ссылка уже использована. "
+                "Попросите владельца выдать новую."
+            )
+            return
+
+        staff.telegram_chat_id = str(message.chat.id)
+        staff.telegram_link_code = None  # код одноразовый
+        name = staff.full_name
+        await session.commit()
+
+    await message.answer(
+        f"{name}, готово. Буду присылать сюда новые заявки.\n\n"
+        "Чтобы перестать их получать, попросите владельца отвязать Telegram в панели."
+    )
 
 
 @dispatcher.message(CommandStart())

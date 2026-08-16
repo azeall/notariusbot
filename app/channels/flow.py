@@ -18,6 +18,7 @@ from app.domain import catalog
 from app.domain.requests import RequestError, create_request, issue_upload_token
 from app.domain.schedule import SlotUnavailable, available_slots, book_slot
 from app.models import Channel, Client, Request, Service, SubmissionMode, Tenant
+from app.notifications import notify_new_request as notify_staff
 
 CONSENT_VERSION = "2026-08-15"
 
@@ -248,8 +249,14 @@ async def submit(
             appointment.starts_at.astimezone(ZoneInfo(tenant.timezone))
         )
         await session.flush()
+        await notify_staff(
+            session, request=request, client_name=client.full_name, client_phone=client.phone
+        )
         return request, None
 
     _, token = await issue_upload_token(session, request=request)
     upload_url = f"{get_settings().public_base_url}/upload/{token}"
+    await notify_staff(
+        session, request=request, client_name=client.full_name, client_phone=client.phone
+    )
     return request, upload_url

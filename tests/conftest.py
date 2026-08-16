@@ -35,6 +35,11 @@ from app.models.enums import Channel  # noqa: E402
 
 _ALL_TABLES = ", ".join(f'"{table.name}"' for table in Base.metadata.sorted_tables)
 
+# Схему пересоздаём один раз за прогон. Без этого create_all(checkfirst) молча
+# оставляет таблицы со старыми столбцами, и после правки моделей половина тестов
+# падает с невнятными ошибками драйвера.
+_schema_ready = False
+
 
 @pytest.fixture
 async def engine():
@@ -42,12 +47,17 @@ async def engine():
 
     Именно на каждый, а не на сессию: pytest-asyncio 0.25 заводит отдельный
     event loop под тест, а соединение asyncpg нельзя делить между разными loop'ами.
-    Схема создаётся один раз (checkfirst), таблицы чистятся перед тестом.
     """
+    global _schema_ready
+
     engine = create_async_engine(TEST_DATABASE_URL)
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        await conn.execute(text(f"TRUNCATE {_ALL_TABLES} RESTART IDENTITY CASCADE"))
+        if not _schema_ready:
+            await conn.run_sync(Base.metadata.drop_all)
+            await conn.run_sync(Base.metadata.create_all)
+            _schema_ready = True
+        else:
+            await conn.execute(text(f"TRUNCATE {_ALL_TABLES} RESTART IDENTITY CASCADE"))
     yield engine
     await engine.dispose()
 

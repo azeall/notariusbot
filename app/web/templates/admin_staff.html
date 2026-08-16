@@ -3,6 +3,14 @@
 <h1>Сотрудники</h1>
 <p class="lead">Заявки видят все сотрудники, редактировать услуги может только владелец.</p>
 
+{% if http_request.query_params.get('code') %}
+  <div class="callout">
+    Ссылка для привязки Telegram. Отправьте её сотруднику — он откроет и нажмёт «Старт»,
+    после чего начнёт получать уведомления о новых заявках. Ссылка одноразовая.<br><br>
+    <code>https://t.me/{{ bot_username }}?start=link_{{ http_request.query_params.get('code') }}</code>
+  </div>
+{% endif %}
+
 {% for person in people %}
   <div class="card row">
     <div class="grow">
@@ -10,8 +18,20 @@
         {{ person.full_name }}
         {% if not person.is_active %}<span class="badge closed">отключён</span>{% endif %}
       </div>
-      <div class="m">{{ person.email }} · {{ 'владелец' if person.can_manage_catalog else 'сотрудник' }}</div>
+      <div class="m">
+        {{ person.email }} · {{ 'владелец' if person.can_manage_catalog else 'сотрудник' }}
+        {%- if person.telegram_chat_id %} · Telegram подключён{% else %} · Telegram не подключён{% endif %}
+      </div>
     </div>
+    {% if person.telegram_chat_id %}
+      <form method="post" action="/admin/staff/{{ person.id }}/telegram-unlink" style="margin:0">
+        <button class="ghost" type="submit">Отвязать Telegram</button>
+      </form>
+    {% else %}
+      <form method="post" action="/admin/staff/{{ person.id }}/telegram-link" style="margin:0">
+        <button class="ghost" type="submit">Подключить Telegram</button>
+      </form>
+    {% endif %}
     {% if person.id != staff.id %}
       <form method="post" action="/admin/staff/{{ person.id }}/toggle" style="margin:0">
         <button class="ghost" type="submit">{{ 'Включить' if not person.is_active else 'Отключить' }}</button>

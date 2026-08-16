@@ -1,14 +1,20 @@
+import csv
+import io
+import secrets
 import uuid
-from datetime import time
+from datetime import UTC, date, datetime, time
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request as HttpRequest, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import get_settings
 from app.domain.security import hash_password
 from app.models import (
+    AuditLog,
+    DayOff,
     Service,
     ServiceDocument,
     Staff,
@@ -234,6 +240,13 @@ async def schedule_form(
             select(WorkingHours).where(WorkingHours.tenant_id == owner.tenant_id)
         )
     }
+    days_off = list(
+        await session.scalars(
+            select(DayOff)
+            .where(DayOff.tenant_id == owner.tenant_id, DayOff.day >= date.today())
+            .order_by(DayOff.day)
+        )
+    )
     tenant = await session.get(Tenant, owner.tenant_id)
     return _templates().TemplateResponse(
         http_request,
@@ -244,6 +257,8 @@ async def schedule_form(
             "tenant": tenant,
             "rows": rows,
             "weekday_names": WEEKDAY_NAMES,
+            "days_off": days_off,
+            "today": date.today().isoformat(),
         },
     )
 
@@ -286,6 +301,128 @@ async def save_schedule(
     return RedirectResponse("/admin/schedule", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.post("/schedule/days-off")
+async def add_day_off(
+    day: str = Form(...),
+    reason: str = Form(""),
+    owner: Staff = Depends(current_owner),
+    session: AsyncSession = Depends(db_session),
+):
+    """Разовый выходной: праздник, отпуск, обучение. Перекрывает рабочие часы."""
+    try:
+        parsed = date.fromisoformat(day)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Не разобрал дату") from exc
+
+    existing = await session.scalar(
+        select(DayOff).where(DayOff.tenant_id == owner.tenant_id, DayOff.day == parsed)
+    )
+    if existing is None:
+        session.add(
+            DayOff(tenant_id=owner.tenant_id, day=parsed, reason=reason.strip()[:255])
+        )
+    else:
+        existing.reason = reason.strip()[:255]
+
+    return RedirectResponse("/admin/schedule", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/schedule/days-off/{day_off_id}/delete")
+async def delete_day_off(
+    day_off_id: uuid.UUID,
+    owner: Staff = Depends(current_owner),
+    session: AsyncSession = Depends(db_session),
+):
+    row = await session.scalar(
+        select(DayOff).where(DayOff.id == day_off_id, DayOff.tenant_id == owner.tenant_id)
+    )
+    if row is not None:
+        await session.delete(row)
+    return RedirectResponse("/admin/schedule", status_code=status.HTTP_303_SEE_OTHER)
+
+
+AUDIT_ACTION_LABELS = {
+    "login": "Вход в панель",
+    "documents_uploaded": "Клиент загрузил документы",
+    "document_viewed": "Сотрудник открыл документ",
+    "document_purged": "Документ удалён по сроку хранения",
+}
+
+
+@router.get("/audit", response_class=HTMLResponse)
+async def audit_page(
+    http_request: HttpRequest,
+    owner: Staff = Depends(current_owner),
+    session: AsyncSession = Depends(db_session),
+):
+    """Журнал доступа к персональным данным.
+
+    По 152-ФЗ оператор должен уметь показать, кто и когда обращался к документам
+    клиентов. Поэтому здесь и просмотр, и выгрузка одним файлом.
+    """
+    entries = list(
+        await session.scalars(
+            select(AuditLog)
+            .where(AuditLog.tenant_id == owner.tenant_id)
+            .order_by(AuditLog.created_at.desc())
+            .limit(200)
+        )
+    )
+    tenant = await session.get(Tenant, owner.tenant_id)
+    return _templates().TemplateResponse(
+        http_request,
+        "admin_audit.html",
+        {
+            "title": "Журнал доступа",
+            "staff": owner,
+            "tenant": tenant,
+            "entries": entries,
+            "labels": AUDIT_ACTION_LABELS,
+        },
+    )
+
+
+@router.get("/audit.csv")
+async def audit_csv(
+    owner: Staff = Depends(current_owner), session: AsyncSession = Depends(db_session)
+) -> Response:
+    """Выгрузка журнала целиком — то, что показывают проверяющему."""
+    entries = list(
+        await session.scalars(
+            select(AuditLog)
+            .where(AuditLog.tenant_id == owner.tenant_id)
+            .order_by(AuditLog.created_at)
+        )
+    )
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, delimiter=";")
+    writer.writerow(["Дата и время", "Кто", "Действие", "Объект", "Идентификатор", "IP", "Детали"])
+    for entry in entries:
+        writer.writerow(
+            [
+                entry.created_at.strftime("%d.%m.%Y %H:%M:%S"),
+                entry.actor_label,
+                AUDIT_ACTION_LABELS.get(entry.action, entry.action),
+                entry.object_type,
+                entry.object_id,
+                entry.source_ip,
+                entry.details,
+            ]
+        )
+
+    # BOM, иначе Excel открывает кириллицу как набор символов.
+    payload = ("﻿" + buffer.getvalue()).encode("utf-8")
+    stamp = datetime.now(UTC).strftime("%Y-%m-%d")
+    return Response(
+        content=payload,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="audit-{stamp}.csv"',
+        },
+    )
+
+
 @router.get("/staff", response_class=HTMLResponse)
 async def staff_index(
     http_request: HttpRequest,
@@ -301,7 +438,14 @@ async def staff_index(
     return _templates().TemplateResponse(
         http_request,
         "admin_staff.html",
-        {"title": "Сотрудники", "staff": owner, "tenant": tenant, "people": people},
+        {
+            "title": "Сотрудники",
+            "staff": owner,
+            "tenant": tenant,
+            "people": people,
+            "http_request": http_request,
+            "bot_username": get_settings().telegram_bot_username,
+        },
     )
 
 
@@ -326,6 +470,42 @@ async def add_staff(
             role=StaffRole(role),
         )
     )
+    return RedirectResponse("/admin/staff", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/staff/{staff_id}/telegram-link")
+async def issue_telegram_link(
+    staff_id: uuid.UUID,
+    owner: Staff = Depends(current_owner),
+    session: AsyncSession = Depends(db_session),
+):
+    """Выдать одноразовый код привязки Telegram сотруднику."""
+    person = await session.scalar(
+        select(Staff).where(Staff.id == staff_id, Staff.tenant_id == owner.tenant_id)
+    )
+    if person is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Сотрудник не найден")
+
+    person.telegram_link_code = secrets.token_urlsafe(9)
+    await session.flush()
+    return RedirectResponse(
+        f"/admin/staff?code={person.telegram_link_code}", status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+@router.post("/staff/{staff_id}/telegram-unlink")
+async def unlink_telegram(
+    staff_id: uuid.UUID,
+    owner: Staff = Depends(current_owner),
+    session: AsyncSession = Depends(db_session),
+):
+    person = await session.scalar(
+        select(Staff).where(Staff.id == staff_id, Staff.tenant_id == owner.tenant_id)
+    )
+    if person is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Сотрудник не найден")
+    person.telegram_chat_id = None
+    person.telegram_link_code = None
     return RedirectResponse("/admin/staff", status_code=status.HTTP_303_SEE_OTHER)
 
 

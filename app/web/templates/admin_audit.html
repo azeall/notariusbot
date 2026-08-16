@@ -1,0 +1,39 @@
+{% extends "base_panel.html" %}
+{% block content %}
+<h1>Журнал доступа</h1>
+<p class="lead">
+  Кто и когда обращался к документам клиентов. По 152-ФЗ оператор обязан уметь
+  ответить на этот вопрос — выгрузка ниже и есть тот файл, который показывают проверяющему.
+</p>
+
+<div class="actions" style="margin-bottom:18px">
+  <a class="btn" href="/admin/audit.csv">Выгрузить в CSV</a>
+</div>
+
+{% if not entries %}
+  <div class="empty">Записей пока нет.</div>
+{% else %}
+  <div class="card">
+    <table>
+      <tr>
+        <th>Когда</th><th>Кто</th><th>Действие</th><th>Объект</th><th>IP</th>
+      </tr>
+      {% for entry in entries %}
+        <tr>
+          <td>{{ entry.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+          <td>{{ entry.actor_label or '—' }}</td>
+          <td>
+            {{ labels.get(entry.action, entry.action) }}
+            {% if entry.details %}<div class="m">{{ entry.details }}</div>{% endif %}
+          </td>
+          <td>{{ entry.object_type }}</td>
+          <td>{{ entry.source_ip or '—' }}</td>
+        </tr>
+      {% endfor %}
+    </table>
+  </div>
+  <p class="lead" style="margin-top:12px">
+    Показаны последние 200 записей. В выгрузке — все.
+  </p>
+{% endif %}
+{% endblock %}

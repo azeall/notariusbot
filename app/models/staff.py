@@ -22,6 +22,15 @@ class Staff(Base, UUIDPrimaryKey, TenantScoped, Timestamps):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    # Куда слать уведомления о новых заявках. Пусто — сотрудник не подключил
+    # Telegram и видит заявки только в открытой вкладке очереди.
+    telegram_chat_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Одноразовый код привязки: живёт до первого использования.
+    telegram_link_code: Mapped[str | None] = mapped_column(
+        String(32), nullable=True, unique=True
+    )
+    notify_new_requests: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
     tenant: Mapped["Tenant"] = relationship(back_populates="staff")  # noqa: F821
 
     @property
