@@ -60,6 +60,10 @@
         {{ 'Новая ссылка' if tenant.is_activated else 'Ссылка для входа' }}
       </button>
     </form>
+    <form method="post" action="/platform/tenants/{{ tenant.id }}/delete" style="margin:0"
+          onsubmit="return confirm('Удалить «{{ tenant.display_name }}» полностью?')">
+      <button class="danger" type="submit">Удалить</button>
+    </form>
   </div>
 {% endfor %}
 {% endblock %}

@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 from fastapi import APIRouter, Depends, Form, HTTPException, Request as HttpRequest, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from itsdangerous import BadSignature, URLSafeSerializer
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -23,7 +23,7 @@ from app.domain.security import (
 )
 from app.domain.slugs import SLUG_RE, suggest_slug
 from app.domain.starter import create_default_schedule, create_starter_catalog
-from app.models import PlatformAdmin, Staff, StaffRole, Tenant
+from app.models import PlatformAdmin, Request, Staff, StaffRole, Tenant
 from app.web.deps import (
     SESSION_COOKIE,
     db_session,
@@ -251,6 +251,36 @@ async def _issue_invite(session: AsyncSession, tenant: Tenant) -> str:
     tenant.invite_accepted_at = None
     await session.flush()
     return token
+
+
+@router.post("/platform/tenants/{tenant_id}/delete")
+async def delete_tenant(
+    tenant_id: uuid.UUID,
+    admin: PlatformAdmin = Depends(current_platform_admin),
+    session: AsyncSession = Depends(db_session),
+):
+    """Удалить нотариуса вместе со всем, что за ним стоит.
+
+    Нужно прежде всего для опечаток при заведении: без этого ошибочная карточка
+    остаётся в списке навсегда. Заявки и документы удаляются каскадом, поэтому
+    у действующего нотариуса это делать нельзя — его лучше отключить галочкой.
+    """
+    tenant = await session.get(Tenant, tenant_id)
+    if tenant is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Нотариус не найден")
+
+    requests_count = await session.scalar(
+        select(func.count(Request.id)).where(Request.tenant_id == tenant.id)
+    )
+    if int(requests_count or 0) > 0:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "У этого нотариуса уже есть заявки — их нельзя стирать. "
+            "Снимите галочку «Обслуживается», чтобы прекратить приём.",
+        )
+
+    await session.delete(tenant)
+    return RedirectResponse("/platform", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/platform/tenants/{tenant_id}/invite")

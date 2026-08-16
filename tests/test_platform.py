@@ -287,6 +287,43 @@ async def test_reissue_invalidates_previous_link(as_vendor, http, session):
     assert (await http.get(f"/invite/{new}")).status_code == 200
 
 
+async def test_vendor_deletes_mistyped_tenant(as_vendor, session):
+    """Опечатались при заведении — карточку надо уметь убрать."""
+    await as_vendor.post("/platform/tenants", data=NEW_TENANT)
+    tenant = await session.scalar(select(Tenant).where(Tenant.slug == "kuznecova"))
+
+    response = await as_vendor.post(f"/platform/tenants/{tenant.id}/delete")
+    assert response.status_code == 303
+    assert await session.scalar(select(Tenant).where(Tenant.slug == "kuznecova")) is None
+
+
+async def test_tenant_with_requests_is_not_deletable(as_vendor, session, tenant, service, client):
+    """Заявки клиентов стирать нельзя — нотариуса можно только отключить."""
+    from app.domain.requests import create_request
+    from app.models import Channel
+
+    await create_request(
+        session, tenant=tenant, client=client, service=service, channel=Channel.WIDGET
+    )
+    await session.commit()
+
+    response = await as_vendor.post(f"/platform/tenants/{tenant.id}/delete")
+    assert response.status_code == 400
+    assert "нельзя стирать" in response.json()["detail"]
+    assert await session.get(Tenant, tenant.id) is not None
+
+
+async def test_cyrillic_survives_the_form(as_vendor, session):
+    """Кириллица в названии должна дойти до базы без искажений."""
+    await as_vendor.post(
+        "/platform/tenants",
+        data={**NEW_TENANT, "slug": "schukina", "display_name": "Нотариус Щукина Ёлка"},
+    )
+    tenant = await session.scalar(select(Tenant).where(Tenant.slug == "schukina"))
+    assert tenant.display_name == "Нотариус Щукина Ёлка"
+    assert tenant.city == "Самара"
+
+
 async def test_public_signup_is_gone(http):
     """Регистрацию с улицы убрали: нотариусов подключает владелец сервиса."""
     assert (await http.get("/signup")).status_code == 404
