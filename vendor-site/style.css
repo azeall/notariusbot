@@ -194,6 +194,22 @@ section { padding: var(--gap) clamp(20px, 5vw, 64px); }
 
 /* --- мелкий шрифт и подвал --- */
 
+.notice {
+  margin-top: 24px;
+  padding: 16px 20px;
+  background: var(--wash);
+  border-left: 2px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  max-width: 40em;
+}
+.notice code {
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 0.875em;
+  color: var(--ink);
+}
+
 .fineprint {
   color: var(--muted);
   font-size: 0.8125rem;

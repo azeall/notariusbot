@@ -17,7 +17,7 @@
     <a href="#what">Что входит</a>
     <a href="#start">Подключение</a>
   </nav>
-  <a class="btn small" href="/platform/login">Войти</a>
+  <a class="btn small" href="#start" data-service-link="/platform/login">Войти</a>
 </header>
 
 <main>
@@ -166,8 +166,13 @@
     </p>
 
     <div class="cta">
-      <a class="btn" href="/platform/login">Кабинет владельца сервиса</a>
+      <a class="btn" href="#start" data-service-link="/platform/login">Кабинет владельца сервиса</a>
     </div>
+
+    <p class="notice" id="service-note" hidden>
+      Сервис пока не развёрнут на постоянном адресе, поэтому кабинет недоступен
+      с этой страницы. Адрес подставляется в <code>vendor-site/config.js</code>.
+    </p>
 
     <p class="fineprint">
       Сервис даёт предварительную информацию и не заменяет нотариальную
@@ -179,8 +184,33 @@
 
 <footer>
   <span>Приём заявок для нотариусов</span>
-  <a href="/platform/login">Войти</a>
+  <a href="#start" data-service-link="/platform/login">Войти</a>
 </footer>
+
+<script src="/config.js"></script>
+<script>
+(function () {
+  var base = (window.SERVICE_URL || '').replace(/\/+$/, '');
+  var links = document.querySelectorAll('[data-service-link]');
+
+  if (!base) {
+    // Сервис ещё не развёрнут. Лучше честно сказать это на месте, чем
+    // отправить человека на несуществующую страницу.
+    links.forEach(function (link) {
+      link.addEventListener('click', function (event) {
+        event.preventDefault();
+        var note = document.getElementById('service-note');
+        if (note) { note.hidden = false; note.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      });
+    });
+    return;
+  }
+
+  links.forEach(function (link) {
+    link.href = base + link.getAttribute('data-service-link');
+  });
+})();
+</script>
 
 </body>
 </html>
