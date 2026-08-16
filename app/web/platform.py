@@ -23,6 +23,7 @@ from app.domain.security import (
 )
 from app.domain.slugs import SLUG_RE, suggest_slug
 from app.domain.starter import create_default_schedule, create_starter_catalog
+from app.domain.theme import DEFAULT_ACCENT, FONTS, MODES, normalize_accent
 from app.models import PlatformAdmin, Request, Staff, StaffRole, Tenant
 from app.web.deps import (
     SESSION_COOKIE,
@@ -179,6 +180,9 @@ async def save_tenant(
     phone: str = Form(""),
     timezone: str = Form("Europe/Moscow"),
     allowed_origins: str = Form(""),
+    widget_mode: str = Form("dark"),
+    widget_accent: str = Form(DEFAULT_ACCENT),
+    widget_font: str = Form("sans"),
     is_active: str = Form(""),
     admin: PlatformAdmin = Depends(current_platform_admin),
     session: AsyncSession = Depends(db_session),
@@ -227,6 +231,9 @@ async def save_tenant(
     tenant.phone = phone.strip()
     tenant.timezone = timezone.strip() or "Europe/Moscow"
     tenant.allowed_origins = origins
+    tenant.widget_mode = widget_mode if widget_mode in MODES else "dark"
+    tenant.widget_accent = normalize_accent(widget_accent)
+    tenant.widget_font = widget_font if widget_font in FONTS else "sans"
     tenant.is_active = bool(is_active) or fresh
     await session.flush()
 

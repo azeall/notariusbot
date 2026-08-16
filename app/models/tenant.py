@@ -29,6 +29,12 @@ class Tenant(Base, UUIDPrimaryKey, Timestamps):
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    # Виджет должен выглядеть частью сайта нотариуса, а не чужой вставкой,
+    # поэтому палитра задаётся для каждого отдельно.
+    widget_mode: Mapped[str] = mapped_column(String(16), default="dark", nullable=False)
+    widget_accent: Mapped[str] = mapped_column(String(16), default="#b89a5a", nullable=False)
+    widget_font: Mapped[str] = mapped_column(String(16), default="sans", nullable=False)
+
     # Приглашение нотариусу: владелец сервиса заводит карточку, а почту и пароль
     # нотариус задаёт сам по ссылке. В базе только хеш — по нему ссылку
     # не восстановить, как и в случае с загрузкой документов.

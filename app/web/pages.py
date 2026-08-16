@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Request as HttpRequest
 from fastapi.responses import HTMLResponse, Response
 
 from app.config import get_settings
+from app.domain.theme import build_palette, palette_css
 from app.models import Tenant
 from app.web.deps import resolve_tenant
 
@@ -13,6 +14,7 @@ async def widget_page(http_request: HttpRequest, tenant: Tenant = Depends(resolv
     """Страница виджета. Открывается внутри iframe на сайте нотариуса."""
     from app.web.main import TEMPLATES
 
+    palette = build_palette(tenant.widget_mode, tenant.widget_accent, tenant.widget_font)
     response = TEMPLATES.TemplateResponse(
         http_request,
         "widget.html",
@@ -20,6 +22,7 @@ async def widget_page(http_request: HttpRequest, tenant: Tenant = Depends(resolv
             "title": f"Заявка нотариусу — {tenant.display_name}",
             "tenant": tenant,
             "api_base": f"/api/v1/{tenant.slug}",
+            "palette_css": palette_css(palette),
         },
     )
     # Кто имеет право встраивать страницу. Пустой список доменов означает

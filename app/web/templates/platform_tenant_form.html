@@ -61,7 +61,51 @@
     </span>
   </label>
 
+  <h2>Вид виджета</h2>
+  <p class="lead" style="font-size:13px;margin-bottom:14px">
+    Виджет открывается поверх сайта нотариуса. Подберите цвета под этот сайт —
+    иначе он читается как чужая вставка, и доверие к записи падает вместе с ним.
+  </p>
+
+  <div class="grid2">
+    <label class="field">
+      <span class="cap">Фон</span>
+      <select name="widget_mode">
+        <option value="dark" {% if not tenant or tenant.widget_mode == 'dark' %}selected{% endif %}>
+          Тёмный
+        </option>
+        <option value="light" {% if tenant and tenant.widget_mode == 'light' %}selected{% endif %}>
+          Светлый
+        </option>
+      </select>
+    </label>
+    <label class="field">
+      <span class="cap">Цвет кнопок</span>
+      <input type="text" name="widget_accent"
+             value="{{ tenant.widget_accent if tenant else '#b89a5a' }}"
+             placeholder="#b89a5a">
+      <span class="note">Возьмите главный цвет сайта нотариуса.</span>
+    </label>
+  </div>
+
+  <label class="field">
+    <span class="cap">Шрифт заголовков</span>
+    <select name="widget_font">
+      <option value="sans" {% if not tenant or tenant.widget_font == 'sans' %}selected{% endif %}>
+        Без засечек
+      </option>
+      <option value="serif" {% if tenant and tenant.widget_font == 'serif' %}selected{% endif %}>
+        С засечками
+      </option>
+    </select>
+  </label>
+
   {% if tenant %}
+    <div class="callout">
+      Посмотреть, что получилось:
+      <a href="/widget/{{ tenant.slug }}" target="_blank" rel="noopener">открыть виджет</a>
+    </div>
+
     <label class="field">
       <input type="checkbox" name="is_active" value="1" {% if tenant.is_active %}checked{% endif %}>
       Обслуживается
