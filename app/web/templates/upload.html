@@ -15,34 +15,50 @@
   </header>
 
   <main>
-    {% if checklist %}
-      <p class="hint">Нужны эти документы:</p>
-      <ul class="checklist">
-        {% for doc in checklist %}
-          <li{% if not doc.is_required %} class="optional"{% endif %}>
-            <div>{{ doc.title }}{% if not doc.is_required %}<span class="opt">если есть</span>{% endif %}</div>
-            {% if doc.description %}<div class="d">{{ doc.description }}</div>{% endif %}
-          </li>
-        {% endfor %}
+    <div id="form-part">
+      {% if checklist %}
+        <p class="hint">Нужны эти документы:</p>
+        <ul class="checklist">
+          {% for doc in checklist %}
+            <li{% if not doc.is_required %} class="optional"{% endif %}>
+              <div>{{ doc.title }}{% if not doc.is_required %}<span class="opt">если есть</span>{% endif %}</div>
+              {% if doc.description %}<div class="d">{{ doc.description }}</div>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      <label class="picker">
+        <input type="file" id="files" multiple accept=".pdf,image/jpeg,image/png,image/heic">
+        <span class="drop" id="drop">
+          <span class="icon">＋</span>
+          <span class="main">Выбрать файлы</span>
+          <span class="sub">или перетащите их сюда</span>
+        </span>
+      </label>
+
+      <ul class="rules">
+        <li><b>Назовите файлы понятно</b> — «паспорт.pdf», «свидетельство о браке.jpg», «СТС.pdf».
+          Имена от камеры вроде «IMG_2481.jpg» система не примет: сотруднику
+          иначе придётся открывать каждый файл, чтобы понять, что внутри.</li>
+        <li>PDF или фотография, до {{ max_mb }} МБ каждый файл.</li>
       </ul>
-    {% endif %}
 
-    <label class="field">
-      <span class="cap">Выберите файлы — PDF или фотографии, до {{ max_mb }} МБ каждый</span>
-      <input type="file" id="files" multiple accept=".pdf,image/jpeg,image/png,image/heic">
-    </label>
+      <ul class="files" id="list"></ul>
 
-    <div class="callout">
-      Файлы шифруются при сохранении и доступны только сотрудникам этого нотариуса.
-      Ссылка одноразовая: после отправки она перестанет работать.
+      <div class="callout">
+        Файлы шифруются при сохранении и доступны только сотрудникам этого нотариуса.
+        Ссылка одноразовая: после отправки она перестанет работать.
+      </div>
+
+      <div class="error" id="err"></div>
+      <button class="primary" type="button" id="send" disabled>Отправить документы</button>
     </div>
 
-    <div class="error" id="err"></div>
-    <button class="primary" type="button" id="send">Отправить документы</button>
-
-    <div id="done" hidden style="text-align:center;padding-top:20px">
+    <div id="done" hidden style="text-align:center;padding-top:14px">
       <h2>Документы получены</h2>
       <p class="hint" id="done-list"></p>
+      <ul class="files" id="done-files"></ul>
     </div>
   </main>
 
@@ -52,40 +68,204 @@
 <script>
 (function () {
   var token = {{ token | tojson }};
-  var input = document.getElementById("files");
-  var err = document.getElementById("err");
-  var btn = document.getElementById("send");
+  var maxBytes = {{ max_mb }} * 1024 * 1024;
 
-  btn.addEventListener("click", function () {
-    err.textContent = "";
-    if (!input.files.length) { err.textContent = "Выберите хотя бы один файл."; return; }
+  var input = document.getElementById('files');
+  var drop = document.getElementById('drop');
+  var list = document.getElementById('list');
+  var err = document.getElementById('err');
+  var btn = document.getElementById('send');
+
+  // Те же правила, что и на сервере: браузер отвечает быстро, сервер решает.
+  var GENERIC = ['img','image','photo','foto','picture','pic','scan','scanned','doc',
+    'document','file','download','screenshot','снимок','фото','изображение','скан',
+    'документ','файл','безымянный','новый'];
+  var HINT = 'Переименуйте: паспорт.pdf, свидетельство о браке.jpg, СТС.pdf';
+
+  function stem(name) {
+    var base = name.split(/[\\/]/).pop();
+    var dot = base.lastIndexOf('.');
+    return (dot > 0 ? base.slice(0, dot) : base).trim();
+  }
+
+  function nameProblem(name) {
+    var s = stem(name);
+    if (!s) return 'У файла нет имени. ' + HINT;
+    var letters = s.match(/[a-zA-Zа-яА-ЯёЁ]/g) || [];
+    if (letters.length < 3) return 'По имени непонятно, что внутри. ' + HINT;
+
+    var words = s.toLowerCase().split(/[\s_\-.()\[\]#№]+/).filter(Boolean);
+    var meaningful = words.filter(function (w) { return !/^\d+$/.test(w); });
+    if (!meaningful.length) return 'В имени только цифры. ' + HINT;
+
+    var stripped = meaningful.map(function (w) { return w.replace(/\d+/g, ''); })
+                             .filter(Boolean);
+    var allGeneric = stripped.length > 0 && stripped.every(function (w) {
+      return GENERIC.indexOf(w) !== -1;
+    });
+    if (allGeneric) return 'Это имя по умолчанию от камеры или сканера. ' + HINT;
+    return null;
+  }
+
+  var chosen = [];
+
+  function render() {
+    list.innerHTML = '';
+    chosen.forEach(function (item, index) {
+      var li = document.createElement('li');
+      li.dataset.state = item.state;
+
+      var mark = document.createElement('span');
+      mark.className = 'mark';
+      mark.textContent = item.state === 'done' ? '✓' : (item.state === 'bad' ? '!' : (index + 1));
+
+      var body = document.createElement('div');
+      body.className = 'body';
+      var nm = document.createElement('div');
+      nm.className = 'nm';
+      nm.textContent = item.file.name;
+      body.appendChild(nm);
+
+      if (item.note) {
+        var note = document.createElement('div');
+        note.className = 'note';
+        note.textContent = item.note;
+        body.appendChild(note);
+      }
+
+      li.appendChild(mark);
+      li.appendChild(body);
+
+      if (item.state !== 'done') {
+        var remove = document.createElement('button');
+        remove.className = 'drop-file';
+        remove.type = 'button';
+        remove.setAttribute('aria-label', 'Убрать');
+        remove.innerHTML = '&times;';
+        remove.addEventListener('click', function () {
+          chosen.splice(index, 1);
+          render();
+        });
+        li.appendChild(remove);
+      }
+
+      list.appendChild(li);
+    });
+
+    var ready = chosen.filter(function (i) { return i.state === 'ok'; }).length;
+    btn.disabled = ready === 0;
+    btn.textContent = ready > 1 ? 'Отправить документы (' + ready + ')' : 'Отправить документы';
+  }
+
+  function add(fileList) {
+    Array.prototype.forEach.call(fileList, function (file) {
+      var already = chosen.some(function (i) {
+        return i.file.name === file.name && i.file.size === file.size;
+      });
+      if (already) return;
+
+      var problem = nameProblem(file.name);
+      if (!problem && file.size > maxBytes) {
+        problem = 'Файл больше {{ max_mb }} МБ';
+      }
+      chosen.push({
+        file: file,
+        state: problem ? 'bad' : 'ok',
+        note: problem || ''
+      });
+    });
+    err.textContent = '';
+    render();
+  }
+
+  input.addEventListener('change', function (e) {
+    add(e.target.files);
+    input.value = '';
+  });
+
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.dataset.over = '1'; });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); delete drop.dataset.over; });
+  });
+  drop.addEventListener('drop', function (e) {
+    if (e.dataTransfer && e.dataTransfer.files) add(e.dataTransfer.files);
+  });
+
+  btn.addEventListener('click', function () {
+    err.textContent = '';
+    var good = chosen.filter(function (i) { return i.state === 'ok'; });
+    if (!good.length) { err.textContent = 'Нет файлов, готовых к отправке.'; return; }
+
+    var bad = chosen.filter(function (i) { return i.state === 'bad'; });
+    if (bad.length) {
+      err.textContent = 'Сначала переименуйте или уберите файлы с ошибкой.';
+      return;
+    }
 
     var data = new FormData();
-    for (var i = 0; i < input.files.length; i++) data.append("files", input.files[i]);
+    good.forEach(function (i) { data.append('files', i.file); });
+
+    good.forEach(function (i) { i.state = 'sending'; });
+    render();
 
     btn.disabled = true;
-    btn.textContent = "Отправляем…";
-    fetch("/upload/" + encodeURIComponent(token), { method: "POST", body: data })
+    btn.textContent = 'Отправляем…';
+
+    fetch('/upload/' + encodeURIComponent(token), { method: 'POST', body: data })
       .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
       .then(function (res) {
         if (!res.ok) {
+          good.forEach(function (i) { i.state = 'ok'; });
+          render();
           btn.disabled = false;
-          btn.textContent = "Отправить документы";
-          err.textContent = res.body.detail || "Не удалось загрузить файлы.";
+          btn.textContent = 'Отправить документы';
+          err.textContent = res.body.detail || 'Не удалось загрузить файлы.';
           return;
         }
-        document.querySelectorAll(".field, .callout, #send, .checklist, .hint").forEach(function (el) {
-          el.hidden = true;
-        });
-        document.getElementById("done").hidden = false;
-        document.getElementById("done-list").textContent = "Принято: " + res.body.saved.join(", ");
+        finish(good);
       })
       .catch(function () {
+        good.forEach(function (i) { i.state = 'ok'; });
+        render();
         btn.disabled = false;
-        btn.textContent = "Отправить документы";
-        err.textContent = "Нет связи с сервером.";
+        btn.textContent = 'Отправить документы';
+        err.textContent = 'Нет связи с сервером.';
       });
   });
+
+  function finish(sent) {
+    document.getElementById('form-part').hidden = true;
+    var done = document.getElementById('done');
+    var doneList = document.getElementById('done-files');
+    done.hidden = false;
+    document.getElementById('done-list').textContent =
+      sent.length > 1 ? 'Принято файлов: ' + sent.length : 'Файл принят';
+
+    // Отмечаем по очереди — видно, что принят каждый, а не «что-то отправилось».
+    sent.forEach(function (item, index) {
+      var li = document.createElement('li');
+      li.dataset.state = 'sending';
+      var mark = document.createElement('span');
+      mark.className = 'mark';
+      mark.textContent = index + 1;
+      var body = document.createElement('div');
+      body.className = 'body';
+      var nm = document.createElement('div');
+      nm.className = 'nm';
+      nm.textContent = item.file.name;
+      body.appendChild(nm);
+      li.appendChild(mark);
+      li.appendChild(body);
+      doneList.appendChild(li);
+
+      setTimeout(function () {
+        li.dataset.state = 'done';
+        mark.textContent = '✓';
+      }, 180 * (index + 1));
+    });
+  }
 })();
 </script>
 </body>

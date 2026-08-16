@@ -34,10 +34,4 @@
     </form>
   </div>
 {% endfor %}
-
-<h2>Как поставить виджет на сайт</h2>
-<div class="callout">
-  Вставьте перед закрывающим тегом <code>&lt;/body&gt;</code> на сайте нотариуса:<br><br>
-  <code>&lt;script src="{{ request.base_url }}embed.js" data-notary="{{ tenant.slug }}" defer&gt;&lt;/script&gt;</code>
-</div>
 {% endblock %}

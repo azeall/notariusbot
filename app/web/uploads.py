@@ -13,6 +13,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.domain.filenames import check_filename
 from app.domain.requests import resolve_upload_token, transition_request
 from app.domain.storage import DocumentStorage
 from app.models import Attachment, AuditLog, Request, RequestStatus
@@ -78,6 +79,10 @@ async def upload_documents(
         payload = await upload.read()
         if len(payload) == 0:
             continue
+
+        naming_error = check_filename(upload.filename or "")
+        if naming_error:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, naming_error)
         if len(payload) > settings.max_upload_bytes:
             raise HTTPException(
                 status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,

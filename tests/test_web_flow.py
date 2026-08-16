@@ -245,6 +245,51 @@ async def test_upload_flow_end_to_end(http, session, tenant, service, employee):
     assert attachment.original_filename == "passport.pdf"
 
 
+async def test_upload_rejects_camera_filename(http, tenant, service):
+    """Сотрудник должен понимать по списку вложений, где какой документ."""
+    created = await http.post(
+        f"/api/v1/{tenant.slug}/requests",
+        json={
+            "service_id": str(service.id),
+            "full_name": "Смирнов Алексей",
+            "phone": "+79990000001",
+            "consent": True,
+        },
+    )
+    token = created.json()["upload_url"].rsplit("/", 1)[-1]
+
+    rejected = await http.post(
+        f"/upload/{token}",
+        files=[("files", ("IMG_2481.jpg", b"\xff\xd8\xff", "image/jpeg"))],
+    )
+    assert rejected.status_code == 400
+    assert "IMG_2481.jpg" in rejected.json()["detail"]
+
+    # Ссылка при этом не сгорела — клиент переименует и пришлёт снова.
+    accepted = await http.post(
+        f"/upload/{token}",
+        files=[("files", ("паспорт.jpg", b"\xff\xd8\xff", "image/jpeg"))],
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["saved"] == ["паспорт.jpg"]
+
+
+async def test_upload_page_explains_naming_rule(http, tenant, service):
+    created = await http.post(
+        f"/api/v1/{tenant.slug}/requests",
+        json={
+            "service_id": str(service.id),
+            "full_name": "Смирнов Алексей",
+            "phone": "+79990000001",
+            "consent": True,
+        },
+    )
+    token = created.json()["upload_url"].rsplit("/", 1)[-1]
+    page = await http.get(f"/upload/{token}")
+    assert "Назовите файлы понятно" in page.text
+    assert "IMG_2481.jpg" in page.text
+
+
 async def test_upload_rejects_unsupported_type(http, tenant, service):
     created = await http.post(
         f"/api/v1/{tenant.slug}/requests",
@@ -382,7 +427,7 @@ async def test_staff_downloads_decrypted_document(http, session, tenant, service
     token = created.json()["upload_url"].rsplit("/", 1)[-1]
     payload = b"%PDF-1.4 secret content"
     await http.post(
-        f"/upload/{token}", files=[("files", ("doc.pdf", payload, "application/pdf"))]
+        f"/upload/{token}", files=[("files", ("паспорт.pdf", payload, "application/pdf"))]
     )
 
     await http.post(
