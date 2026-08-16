@@ -5,10 +5,12 @@
 """
 
 import asyncio
+import secrets
 from datetime import UTC, datetime
 
 from sqlalchemy import select
 
+from app.config import get_settings
 from app.db import dispose_engine, get_sessionmaker
 from app.domain.security import hash_password
 from app.domain.starter import create_default_schedule, create_starter_catalog
@@ -25,26 +27,31 @@ DEMO_ORIGINS = [
 ]
 
 
-PLATFORM_EMAIL = "admin@notarybot.ru"
-PLATFORM_PASSWORD = "admin12345"
-
-
 async def seed() -> None:
+    settings = get_settings()
+    platform_email = settings.platform_admin_email
+    # Пароля в коде нет: репозиторий публичный. Не задан в окружении — придумаем
+    # случайный и покажем один раз, чтобы у кабинета не было известного входа.
+    platform_password = settings.platform_admin_password or secrets.token_urlsafe(12)
+    generated = not settings.platform_admin_password
+
     maker = get_sessionmaker()
     async with maker() as session:
         # Владелец сервиса — тот, кто подключает нотариусов.
         admin = await session.scalar(
-            select(PlatformAdmin).where(PlatformAdmin.email == PLATFORM_EMAIL)
+            select(PlatformAdmin).where(PlatformAdmin.email == platform_email)
         )
         if admin is None:
             session.add(
                 PlatformAdmin(
-                    email=PLATFORM_EMAIL,
-                    password_hash=hash_password(PLATFORM_PASSWORD),
+                    email=platform_email,
+                    password_hash=hash_password(platform_password),
                     full_name="Владелец сервиса",
                 )
             )
             await session.commit()
+        else:
+            platform_password = None  # уже заведён, пароль прежний
 
         existing = await session.scalar(select(Tenant).where(Tenant.slug == DEMO_SLUG))
         if existing is not None:
@@ -99,7 +106,14 @@ async def seed() -> None:
     print("  сотрудник: helper@demo.ru / demo12345")
     print()
     print("Кабинет владельца сервиса: /platform/login")
-    print(f"  {PLATFORM_EMAIL} / {PLATFORM_PASSWORD}")
+    if platform_password is None:
+        print(f"  {platform_email} / пароль прежний")
+    elif generated:
+        print(f"  {platform_email} / {platform_password}")
+        print("  Пароль сгенерирован и больше нигде не сохранён — запишите его.")
+        print("  Чтобы задать свой, впишите PLATFORM_ADMIN_PASSWORD в .env.")
+    else:
+        print(f"  {platform_email} / из PLATFORM_ADMIN_PASSWORD")
 
 
 if __name__ == "__main__":

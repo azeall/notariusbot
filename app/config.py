@@ -51,6 +51,12 @@ class Settings(BaseSettings):
 
     session_secret: str = "dev-only-session-secret"
 
+    # Вход владельца сервиса. Пароль намеренно без значения по умолчанию:
+    # репозиторий публичный, и зашитый пароль означал бы, что ключи от кабинета
+    # знает любой читатель. Пустой — сид придумает случайный и напечатает один раз.
+    platform_admin_email: str = "admin@notarybot.ru"
+    platform_admin_password: str = ""
+
     # --- каналы ---
     # Токен бота от @BotFather. Пустой — бот просто не запускается.
     telegram_bot_token: str = ""
