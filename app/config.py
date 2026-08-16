@@ -58,7 +58,9 @@ class Settings(BaseSettings):
     telegram_bot_username: str = "notariustbot"
     # Токен бота MAX. Пустой — адаптер не запускается.
     max_bot_token: str = ""
-    max_api_base: str = "https://botapi.max.ru"
+    # В документации MAX встречаются platform-api и platform-api2 — адрес
+    # вынесен в настройку, чтобы переключаться без правки кода.
+    max_api_base: str = "https://platform-api.max.ru"
 
     # К какому нотариусу попадает клиент, пришедший без deep-link.
     # Для одного нотариуса на бота этого достаточно; для многих клиент

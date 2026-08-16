@@ -1,13 +1,19 @@
 """HTTP-клиент MAX Bot API.
 
-Здесь намеренно собрано всё, что специфично для MAX: адреса методов и формат
-ответов. Логика диалога лежит в app.channels.flow и от этого файла не зависит,
-поэтому дописать канал — значит поправить только этот класс.
+Здесь собрано всё, что специфично для MAX: адреса методов и формат ответов.
+Логика диалога лежит в app.channels.flow и от этого файла не зависит.
 
-ВНИМАНИЕ: имена методов и поля ответов ниже нужно сверить с актуальной
-документацией dev.max.ru перед первым запуском. Экосистема MAX моложе
-телеграмовской, и API успел меняться. Структура адаптера от этого не поменяется —
-поменяются только строки эндпоинтов и разбор полей в updates().
+Сверено с dev.max.ru (август 2026):
+  * база — platform-api.max.ru, у документации встречается и platform-api2,
+    поэтому адрес вынесен в настройку MAX_API_BASE;
+  * токен идёт заголовком Authorization, передача через query больше
+    не поддерживается — на этом ломались старые примеры;
+  * GET /updates — long polling, POST /messages — отправка;
+  * события: message_created и message_callback.
+
+Сами MAX предупреждают, что long polling не годится для продакшна (события
+живут ограниченное время) и советуют вебхук. Для запуска этого достаточно,
+но при боевой нагрузке канал стоит перевести на POST /subscriptions.
 """
 
 from dataclasses import dataclass
@@ -38,17 +44,20 @@ class MaxClient:
         settings = get_settings()
         self.token = token or settings.max_bot_token
         self.base_url = (base_url or settings.max_api_base).rstrip("/")
-        self._client = httpx.AsyncClient(timeout=httpx.Timeout(70.0))
+        # Токен только заголовком: передача через query в MAX отключена.
+        self._client = httpx.AsyncClient(
+            timeout=httpx.Timeout(70.0),
+            headers={"Authorization": self.token},
+        )
 
     async def close(self) -> None:
         await self._client.aclose()
 
-    def _params(self, **extra: Any) -> dict[str, Any]:
-        return {"access_token": self.token, **extra}
-
-    async def updates(self, marker: int | None = None, timeout: int = 60) -> tuple[list[MaxUpdate], int | None]:
+    async def updates(
+        self, marker: int | None = None, timeout: int = 60
+    ) -> tuple[list[MaxUpdate], int | None]:
         """Long polling. Возвращает события и маркер для следующего запроса."""
-        params = self._params(timeout=timeout)
+        params: dict[str, Any] = {"timeout": timeout}
         if marker is not None:
             params["marker"] = marker
 
@@ -114,7 +123,7 @@ class MaxClient:
 
         response = await self._client.post(
             f"{self.base_url}/messages",
-            params=self._params(chat_id=chat_id),
+            params={"chat_id": chat_id},
             json=body,
         )
         response.raise_for_status()
