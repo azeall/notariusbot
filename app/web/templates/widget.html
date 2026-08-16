@@ -12,276 +12,391 @@
   <header>
     <div class="name">{{ tenant.display_name }}</div>
     <div class="sub">
-      {% if tenant.city %}{{ tenant.city }}{% endif %}
+      {%- if tenant.city %}{{ tenant.city }}{% endif %}
       {%- if tenant.phone %} · {{ tenant.phone }}{% endif %}
     </div>
   </header>
 
-  <main>
-    <!-- Шаг 1: выбор услуги -->
-    <section class="step" data-step="service" data-active="1">
-      <h2>С чем к нотариусу?</h2>
-      <p class="hint">Опишите своими словами или выберите из списка.</p>
-      <label class="field">
-        <input type="text" id="q" placeholder="например: доверенность на машину" autocomplete="off">
-      </label>
-      <div id="services"></div>
-    </section>
+  <div class="chat scroll" id="chat"></div>
 
-    <!-- Шаг 2: перечень документов -->
-    <section class="step" data-step="details">
-      <div class="back"><button class="link" type="button" data-goto="service">← к списку услуг</button></div>
-      <h2 id="svc-title"></h2>
-      <div class="meta" id="svc-meta"></div>
-      <p class="hint" id="docs-cap">Что нужно взять с собой:</p>
-      <ul class="checklist" id="docs"></ul>
-      <button class="primary" type="button" id="to-contacts">Продолжить</button>
-    </section>
-
-    <!-- Шаг 3: контакты и время -->
-    <section class="step" data-step="contacts">
-      <div class="back"><button class="link" type="button" data-goto="details">← к документам</button></div>
-      <h2>Ваши контакты</h2>
-      <div id="slots-block" hidden>
-        <p class="hint">Выберите удобное время приёма:</p>
-        <div class="slots" id="slots"></div>
-      </div>
-      <label class="field">
-        <span class="cap">Фамилия и имя</span>
-        <input type="text" id="name" autocomplete="name">
-      </label>
-      <label class="field">
-        <span class="cap">Телефон</span>
-        <input type="tel" id="phone" placeholder="+7 900 000-00-00" autocomplete="tel">
-      </label>
-      <label class="field">
-        <span class="cap">Комментарий (необязательно)</span>
-        <textarea id="comment"></textarea>
-      </label>
-      <div class="honeypot" aria-hidden="true">
-        <label>Сайт<input type="text" id="website" tabindex="-1" autocomplete="off"></label>
-      </div>
-      <label class="consent">
-        <input type="checkbox" id="consent">
-        <span>Согласен на обработку персональных данных для оформления заявки.</span>
-      </label>
-      <div class="error" id="err"></div>
-      <button class="primary" type="button" id="submit">Отправить заявку</button>
-    </section>
-
-    <!-- Шаг 4: готово -->
-    <section class="step" data-step="done">
-      <div class="done">
-        <h2>Заявка принята</h2>
-        <div class="num" id="req-num"></div>
-        <p id="done-text"></p>
-        <div class="callout" id="done-callout" hidden></div>
-        <button class="ghost" type="button" data-goto="service">Оформить ещё одну</button>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    Заявка не является нотариальным действием. Окончательный перечень документов
-    подтверждает сотрудник нотариуса.
-  </footer>
+  <div class="composer">
+    <div class="err" id="err"></div>
+    <div class="choices scroll" id="choices"></div>
+    <div class="row" id="input-row" hidden>
+      <input type="text" id="field" autocomplete="off">
+      <button class="send" type="button" id="send" aria-label="Отправить">→</button>
+    </div>
+    <div class="honeypot" aria-hidden="true">
+      <label>Сайт<input type="text" id="website" tabindex="-1" autocomplete="off"></label>
+    </div>
+    <div class="legal">
+      Предварительная информация. Окончательный перечень документов
+      подтверждает сотрудник нотариуса.
+    </div>
+  </div>
 </div>
 
 <script>
 (function () {
   var API = {{ api_base | tojson }};
-  var state = { service: null, slot: null };
 
-  function $(id) { return document.getElementById(id); }
-  function show(name) {
-    document.querySelectorAll(".step").forEach(function (el) {
-      if (el.dataset.step === name) { el.dataset.active = "1"; } else { delete el.dataset.active; }
-    });
-    window.scrollTo(0, 0);
+  var chat = document.getElementById('chat');
+  var choices = document.getElementById('choices');
+  var row = document.getElementById('input-row');
+  var field = document.getElementById('field');
+  var send = document.getElementById('send');
+  var err = document.getElementById('err');
+
+  var state = { service: null, slot: null, name: '', phone: '' };
+  var onText = null;
+
+  // --- реплики ---------------------------------------------------------
+
+  function scroll() { chat.scrollTop = chat.scrollHeight; }
+
+  function bubble(cls, build) {
+    var el = document.createElement('div');
+    el.className = 'msg ' + cls;
+    build(el);
+    chat.appendChild(el);
+    scroll();
+    return el;
   }
 
-  document.querySelectorAll("[data-goto]").forEach(function (el) {
-    el.addEventListener("click", function () { show(el.dataset.goto); });
+  function say(text) {
+    return bubble('bot', function (el) { el.textContent = text; });
+  }
+
+  function you(text) {
+    return bubble('me', function (el) { el.textContent = text; });
+  }
+
+  function note(text) {
+    return bubble('note', function (el) { el.textContent = text; });
+  }
+
+  function typing() {
+    var el = document.createElement('div');
+    el.className = 'msg bot typing';
+    el.innerHTML = '<span></span><span></span><span></span>';
+    chat.appendChild(el);
+    scroll();
+    return el;
+  }
+
+  // Небольшая пауза перед ответом: без неё реплики появляются рывком
+  // и читаются хуже, чем настоящая переписка.
+  function reply(text, next) {
+    var dots = typing();
+    setTimeout(function () {
+      dots.remove();
+      if (text) say(text);
+      if (next) next();
+    }, 340);
+  }
+
+  // --- варианты ответа и ввод -----------------------------------------
+
+  function clearChoices() { choices.innerHTML = ''; }
+
+  function choice(label, hint, onPick, cls) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip' + (cls ? ' ' + cls : '');
+    var t = document.createElement('div');
+    t.textContent = label;
+    b.appendChild(t);
+    if (hint) {
+      var m = document.createElement('div');
+      m.className = 'm';
+      m.textContent = hint;
+      b.appendChild(m);
+    }
+    b.addEventListener('click', function () {
+      clearChoices();
+      onPick();
+    });
+    choices.appendChild(b);
+    return b;
+  }
+
+  function ask(placeholder, handler) {
+    onText = handler;
+    field.value = '';
+    field.placeholder = placeholder;
+    row.hidden = false;
+    field.focus();
+  }
+
+  function hideInput() { row.hidden = true; onText = null; }
+
+  send.addEventListener('click', submitText);
+  field.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') submitText();
   });
 
-  function renderServices(items) {
-    var box = $("services");
-    box.innerHTML = "";
-    if (!items.length) {
-      box.innerHTML = '<p class="hint">Ничего не нашлось. Попробуйте другое слово или выберите из полного списка.</p>';
-      return;
-    }
+  function submitText() {
+    var value = field.value.trim();
+    if (!value || !onText) return;
+    var handler = onText;
+    field.value = '';
+    handler(value);
+  }
+
+  // --- шаги ------------------------------------------------------------
+
+  function start() {
+    reply('Здравствуйте. Подскажу, какие документы нужны, и приму заявку.', function () {
+      reply('Напишите своими словами, что нужно — например «доверенность на машину». Или выберите из списка.', function () {
+        loadAll();
+        ask('Что нужно оформить?', function (text) {
+          you(text);
+          hideInput();
+          search(text);
+        });
+      });
+    });
+  }
+
+  function serviceHint(svc) {
+    var mode = svc.submission_mode === 'visit' ? 'нужен личный визит' : 'документы можно прислать онлайн';
+    return mode + (svc.lead_time_note ? ' · ' + svc.lead_time_note : '');
+  }
+
+  function listServices(items) {
+    clearChoices();
     items.forEach(function (svc) {
-      var b = document.createElement("button");
-      b.className = "service";
-      b.type = "button";
-      var mode = svc.submission_mode === "visit" ? "нужен личный визит" : "документы можно прислать онлайн";
-      b.innerHTML = '<div class="t"></div><div class="m"></div>';
-      b.querySelector(".t").textContent = svc.title;
-      b.querySelector(".m").textContent = mode + (svc.lead_time_note ? " · " + svc.lead_time_note : "");
-      b.addEventListener("click", function () { openService(svc); });
-      box.appendChild(b);
+      choice(svc.title, serviceHint(svc), function () { pick(svc); });
     });
   }
 
   function loadAll() {
-    fetch(API + "/services").then(function (r) { return r.json(); }).then(renderServices);
+    fetch(API + '/services')
+      .then(function (r) { return r.json(); })
+      .then(function (items) { listServices(items.slice(0, 12)); })
+      .catch(function () { err.textContent = 'Не удалось загрузить список услуг.'; });
   }
 
-  var timer = null;
-  $("q").addEventListener("input", function (e) {
-    clearTimeout(timer);
-    var value = e.target.value.trim();
-    timer = setTimeout(function () {
-      if (value.length < 3) { loadAll(); return; }
-      fetch(API + "/services/search?q=" + encodeURIComponent(value))
-        .then(function (r) { return r.json(); })
-        .then(renderServices);
-    }, 250);
-  });
+  function search(text) {
+    fetch(API + '/services/search?q=' + encodeURIComponent(text))
+      .then(function (r) { return r.json(); })
+      .then(function (items) {
+        if (!items.length) {
+          reply('Не нашёл подходящей услуги по этим словам. Посмотрите полный список или напишите иначе.', function () {
+            loadAll();
+            ask('Попробуйте другими словами', function (again) {
+              you(again); hideInput(); search(again);
+            });
+          });
+          return;
+        }
+        reply(items.length === 1 ? 'Похоже, вам нужно это:' : 'Вот что подходит:', function () {
+          listServices(items);
+        });
+      })
+      .catch(function () { err.textContent = 'Нет связи с сервером.'; });
+  }
 
-  function openService(svc) {
+  function pick(svc) {
     state.service = svc;
     state.slot = null;
-    $("svc-title").textContent = svc.title;
+    you(svc.title);
+    hideInput();
 
-    var meta = $("svc-meta");
-    meta.innerHTML = "";
-    function row(k, v) {
-      if (!v) return;
-      var d = document.createElement("div");
-      var a = document.createElement("span"); a.textContent = k;
-      var b = document.createElement("span"); b.textContent = v;
-      d.appendChild(a); d.appendChild(b); meta.appendChild(d);
-    }
-    row("Срок", svc.lead_time_note);
-    row("Стоимость", svc.price_note);
-    row("Как подать", svc.submission_mode === "visit" ? "личный визит" : "документы онлайн");
+    reply(null, function () {
+      bubble('bot', function (el) {
+        var facts = [];
+        if (svc.lead_time_note) facts.push('срок: ' + svc.lead_time_note);
+        if (svc.price_note) facts.push(svc.price_note);
+        facts.push(svc.submission_mode === 'visit' ? 'нужен личный визит' : 'документы онлайн');
 
-    var list = $("docs");
-    list.innerHTML = "";
-    svc.documents.forEach(function (doc) {
-      var li = document.createElement("li");
-      if (!doc.is_required) li.className = "optional";
-      var title = document.createElement("div");
-      title.textContent = doc.title;
-      if (!doc.is_required) {
-        var opt = document.createElement("span");
-        opt.className = "opt"; opt.textContent = "если есть";
-        title.appendChild(opt);
-      }
-      li.appendChild(title);
-      if (doc.description) {
-        var d = document.createElement("div");
-        d.className = "d"; d.textContent = doc.description;
-        li.appendChild(d);
-      }
-      list.appendChild(li);
+        var title = document.createElement('div');
+        title.className = 'title';
+        title.textContent = svc.documents.length ? 'Что понадобится' : 'Документы не требуются';
+        el.appendChild(title);
+
+        var f = document.createElement('div');
+        f.className = 'facts';
+        f.textContent = facts.join(' · ');
+        el.appendChild(f);
+
+        if (svc.documents.length) {
+          var ul = document.createElement('ul');
+          ul.className = 'docs';
+          svc.documents.forEach(function (doc) {
+            var li = document.createElement('li');
+            if (!doc.is_required) li.className = 'optional';
+            var line = document.createElement('div');
+            line.textContent = doc.title;
+            if (!doc.is_required) {
+              var opt = document.createElement('span');
+              opt.className = 'opt';
+              opt.textContent = 'если есть';
+              line.appendChild(opt);
+            }
+            li.appendChild(line);
+            if (doc.description) {
+              var d = document.createElement('div');
+              d.className = 'd';
+              d.textContent = doc.description;
+              li.appendChild(d);
+            }
+            ul.appendChild(li);
+          });
+          el.appendChild(ul);
+        }
+      });
+
+      choice('Оформить заявку', null, askName, 'primary');
+      choice('Выбрать другую услугу', null, function () {
+        reply('Хорошо. Вот все услуги:', loadAll);
+      }, 'quiet');
     });
-    $("docs-cap").textContent = svc.documents.length
-      ? "Что понадобится:" : "Отдельный перечень документов не требуется.";
-
-    show("details");
   }
 
-  $("to-contacts").addEventListener("click", function () {
-    var svc = state.service;
-    var block = $("slots-block");
-    if (svc.submission_mode === "visit") {
-      block.hidden = false;
-      fetch(API + "/services/" + svc.id + "/slots")
+  function askName() {
+    reply('Как вас зовут? Напишите фамилию и имя.', function () {
+      ask('Фамилия и имя', function (value) {
+        if (value.length < 2) { err.textContent = 'Слишком коротко.'; return; }
+        err.textContent = '';
+        state.name = value;
+        you(value);
+        askPhone();
+      });
+    });
+  }
+
+  function askPhone() {
+    reply('Оставьте номер телефона для связи.', function () {
+      ask('+7 900 000-00-00', function (value) {
+        var digits = value.replace(/\D/g, '');
+        if (digits.length < 10) { err.textContent = 'Номер выглядит неполным.'; return; }
+        err.textContent = '';
+        state.phone = value;
+        you(value);
+        hideInput();
+        askConsent();
+      });
+    });
+  }
+
+  function askConsent() {
+    reply('Для оформления нужно согласие на обработку персональных данных. Они используются только для подготовки нотариального действия.', function () {
+      choice('Согласен', null, function () {
+        you('Согласен');
+        afterConsent();
+      }, 'primary');
+      choice('Отказаться', null, function () {
+        you('Отказаться');
+        reply('Хорошо. Без согласия заявку принять нельзя, но вы всегда можете позвонить нотариусу напрямую.');
+      }, 'quiet');
+    });
+  }
+
+  function afterConsent() {
+    if (state.service.submission_mode !== 'visit') { submit(); return; }
+
+    reply('Выберите удобное время приёма.', function () {
+      fetch(API + '/services/' + state.service.id + '/slots')
         .then(function (r) { return r.json(); })
         .then(function (slots) {
-          var box = $("slots");
-          box.innerHTML = "";
           if (!slots.length) {
-            box.innerHTML = '<p class="hint">Свободного времени пока нет — оставьте заявку, вам перезвонят.</p>';
+            reply('Свободного времени на ближайшие две недели нет. Оставлю заявку — сотрудник свяжется и подберёт время.', submit);
             return;
           }
           slots.forEach(function (slot) {
-            var b = document.createElement("button");
-            b.className = "slot"; b.type = "button";
-            b.setAttribute("aria-pressed", "false");
-            b.textContent = slot.label;
-            b.addEventListener("click", function () {
-              box.querySelectorAll(".slot").forEach(function (x) { x.setAttribute("aria-pressed", "false"); });
-              b.setAttribute("aria-pressed", "true");
+            choice(slot.label, null, function () {
               state.slot = slot.starts_at;
-            });
-            box.appendChild(b);
+              you(slot.label);
+              submit();
+            }, 'slot');
           });
-        });
-    } else {
-      block.hidden = true;
-    }
-    show("contacts");
-  });
-
-  $("submit").addEventListener("click", function () {
-    var btn = this;
-    var err = $("err");
-    err.textContent = "";
-
-    var payload = {
-      service_id: state.service.id,
-      full_name: $("name").value,
-      phone: $("phone").value,
-      comment: $("comment").value,
-      consent: $("consent").checked,
-      website: $("website").value,
-      slot: state.slot
-    };
-
-    if (!payload.consent) { err.textContent = "Нужно согласие на обработку персональных данных."; return; }
-    if (state.service.submission_mode === "visit" && !state.slot) {
-      err.textContent = "Выберите время приёма."; return;
-    }
-
-    btn.disabled = true;
-    fetch(API + "/requests", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    })
-      .then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); })
-      .then(function (res) {
-        btn.disabled = false;
-        if (!res.ok) {
-          var detail = res.body.detail;
-          if (Array.isArray(detail)) detail = detail.map(function (d) { return d.msg; }).join(". ");
-          err.textContent = detail || "Не удалось отправить заявку.";
-          return;
-        }
-        finish(res.body);
-      })
-      .catch(function () {
-        btn.disabled = false;
-        err.textContent = "Нет связи с сервером. Попробуйте ещё раз.";
-      });
-  });
-
-  function finish(data) {
-    $("req-num").textContent = "№ " + data.public_number;
-    var callout = $("done-callout");
-    if (data.upload_url) {
-      $("done-text").textContent = "Документы можно прислать прямо сейчас — по защищённой ссылке.";
-      callout.hidden = false;
-      callout.innerHTML = "";
-      var a = document.createElement("a");
-      a.href = data.upload_url; a.target = "_blank"; a.rel = "noopener";
-      a.textContent = "Загрузить документы";
-      var note = document.createElement("div");
-      note.style.cssText = "color:var(--slate);margin-top:6px;font-size:12.5px";
-      note.textContent = "Ссылка действует 30 минут, догрузить забытое можно по ней же.";
-      callout.appendChild(a); callout.appendChild(note);
-    } else {
-      $("done-text").textContent = "Сотрудник свяжется с вами для подтверждения.";
-      callout.hidden = true;
-    }
-    show("done");
+        })
+        .catch(function () { err.textContent = 'Не удалось загрузить свободное время.'; });
+    });
   }
 
-  loadAll();
+  function submit() {
+    hideInput();
+    clearChoices();
+    var dots = typing();
+
+    fetch(API + '/requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service_id: state.service.id,
+        full_name: state.name,
+        phone: state.phone,
+        comment: '',
+        consent: true,
+        website: document.getElementById('website').value,
+        slot: state.slot
+      })
+    })
+      .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
+      .then(function (res) {
+        dots.remove();
+        if (!res.ok) {
+          var detail = res.body.detail;
+          if (Array.isArray(detail)) detail = detail.map(function (d) { return d.msg; }).join('. ');
+          say(detail || 'Не удалось отправить заявку.');
+          choice('Попробовать снова', null, submit, 'primary');
+          return;
+        }
+        done(res.body);
+      })
+      .catch(function () {
+        dots.remove();
+        say('Нет связи с сервером.');
+        choice('Попробовать снова', null, submit, 'primary');
+      });
+  }
+
+  function done(data) {
+    say('Заявка № ' + data.public_number + ' принята.');
+
+    if (data.appointment_at) {
+      reply('Ждём вас в выбранное время. Сотрудник свяжется для подтверждения.');
+    } else if (data.upload_url) {
+      reply(null, function () {
+        bubble('bot', function (el) {
+          var p = document.createElement('div');
+          p.textContent = 'Документы можно прислать прямо сейчас:';
+          el.appendChild(p);
+          var a = document.createElement('a');
+          a.href = data.upload_url;
+          a.target = '_blank';
+          a.rel = 'noopener';
+          a.textContent = 'Загрузить документы';
+          el.appendChild(a);
+          var n = document.createElement('div');
+          n.className = 'facts';
+          n.style.marginTop = '6px';
+          n.textContent = 'Ссылка действует 30 минут, догрузить забытое можно по ней же.';
+          el.appendChild(n);
+        });
+        note('Отправлять сканы в мессенджер не нужно — так они не осядут на чужих серверах.');
+        offerMore();
+      });
+      return;
+    } else {
+      reply('Сотрудник свяжется с вами для подтверждения.');
+    }
+    offerMore();
+  }
+
+  function offerMore() {
+    setTimeout(function () {
+      choice('Оформить ещё одну заявку', null, function () {
+        chat.innerHTML = '';
+        state = { service: null, slot: null, name: '', phone: '' };
+        start();
+      }, 'quiet');
+    }, 500);
+  }
+
+  start();
 })();
 </script>
 </body>
