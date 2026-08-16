@@ -234,15 +234,60 @@ async def test_upload_flow_end_to_end(http, session, tenant, service, employee):
     assert upload.status_code == 200, upload.text
     assert upload.json()["saved"] == ["passport.pdf"]
 
-    # Ссылка одноразовая.
+    # По той же ссылке можно догрузить забытое, пока не истёк срок.
     second = await http.post(
-        f"/upload/{token}", files=[("files", ("again.pdf", payload, "application/pdf"))]
+        f"/upload/{token}",
+        files=[("files", ("свидетельство о браке.pdf", payload, "application/pdf"))],
     )
-    assert second.status_code == 410
+    assert second.status_code == 200
+    assert second.json()["total"] == 2
+
+    # Клиент отметил, что прислал всё — дальше ссылка не работает.
+    assert (await http.post(f"/upload/{token}/finish")).status_code == 200
+    closed = await http.post(
+        f"/upload/{token}", files=[("files", ("ещё документ.pdf", payload, "application/pdf"))]
+    )
+    assert closed.status_code == 410
 
     attachment = await session.scalar(select(Attachment))
     assert attachment is not None
     assert attachment.original_filename == "passport.pdf"
+
+
+async def test_upload_respects_file_limit(http, tenant, service):
+    created = await http.post(
+        f"/api/v1/{tenant.slug}/requests",
+        json={
+            "service_id": str(service.id),
+            "full_name": "Смирнов Алексей",
+            "phone": "+79990000001",
+            "consent": True,
+        },
+    )
+    token = created.json()["upload_url"].rsplit("/", 1)[-1]
+    payload = b"%PDF-1.4 x"
+
+    too_many = [
+        ("files", (f"паспорт лист {i}.pdf", payload, "application/pdf")) for i in range(21)
+    ]
+    response = await http.post(f"/upload/{token}", files=too_many)
+    assert response.status_code == 400
+    assert "не больше" in response.json()["detail"]
+
+
+async def test_finish_twice_is_gone(http, tenant, service):
+    created = await http.post(
+        f"/api/v1/{tenant.slug}/requests",
+        json={
+            "service_id": str(service.id),
+            "full_name": "Смирнов Алексей",
+            "phone": "+79990000001",
+            "consent": True,
+        },
+    )
+    token = created.json()["upload_url"].rsplit("/", 1)[-1]
+    assert (await http.post(f"/upload/{token}/finish")).status_code == 200
+    assert (await http.post(f"/upload/{token}/finish")).status_code == 410
 
 
 async def test_upload_rejects_camera_filename(http, tenant, service):

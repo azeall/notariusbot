@@ -10,6 +10,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import HTMLResponse
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -72,6 +73,16 @@ async def upload_documents(
     if not files:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Не выбрано ни одного файла")
 
+    already = await session.scalar(
+        select(func.count(Attachment.id)).where(Attachment.request_id == request.id)
+    )
+    if int(already or 0) + len(files) > settings.max_files_per_request:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"К одной заявке можно приложить не больше "
+            f"{settings.max_files_per_request} файлов.",
+        )
+
     storage = DocumentStorage()
     saved: list[str] = []
 
@@ -110,8 +121,9 @@ async def upload_documents(
     if not saved:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Файлы оказались пустыми")
 
-    # Токен одноразовый: повторно этой ссылкой воспользоваться нельзя.
-    record.used_at = datetime.now(UTC)
+    # Ссылку не закрываем: человек вспоминает про забытый документ уже после
+    # отправки, и просить у сотрудника новую ссылку каждый раз — лишняя работа
+    # для обеих сторон. Ограничивают срок жизни и предел вложений.
 
     if request.status is RequestStatus.AWAITING_DOCUMENTS:
         await transition_request(
@@ -134,4 +146,25 @@ async def upload_documents(
     )
     await session.flush()
 
-    return {"ok": True, "saved": saved, "request_number": request.public_number}
+    total = int(already or 0) + len(saved)
+    return {
+        "ok": True,
+        "saved": saved,
+        "total": total,
+        "remaining": max(settings.max_files_per_request - total, 0),
+        "request_number": request.public_number,
+    }
+
+
+@router.post("/upload/{token}/finish")
+async def finish_upload(
+    token: str, session: AsyncSession = Depends(db_session)
+) -> dict[str, bool]:
+    """Клиент сказал, что прислал всё. Дальше ссылка не работает."""
+    record = await resolve_upload_token(session, token)
+    if record is None:
+        raise HTTPException(status.HTTP_410_GONE, "Ссылка уже закрыта или истекла")
+
+    record.used_at = datetime.now(UTC)
+    await session.flush()
+    return {"ok": True}

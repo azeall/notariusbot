@@ -228,7 +228,7 @@ async def test_events_record_history(session, tenant, client, service, employee)
     assert events[-1].actor_label == employee.full_name
 
 
-async def test_upload_token_is_single_use_and_hashed(session, tenant, client, service):
+async def test_upload_token_is_hashed_and_closable(session, tenant, client, service):
     request = await create_request(
         session, tenant=tenant, client=client, service=service, channel=Channel.WIDGET
     )

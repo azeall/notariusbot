@@ -204,4 +204,5 @@ async def test_confirmation_text_mentions_upload_link(session, tenant, service):
     text = flow.render_confirmation(request, upload_url, tenant.timezone)
     assert f"№ {request.public_number}" in text
     assert upload_url in text
-    assert "одноразовая" in text
+    assert "30 минут" in text
+    assert "догрузить" in text

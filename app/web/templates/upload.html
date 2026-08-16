@@ -48,17 +48,31 @@
 
       <div class="callout">
         Файлы шифруются при сохранении и доступны только сотрудникам этого нотариуса.
-        Ссылка одноразовая: после отправки она перестанет работать.
+        Ссылка живёт 30 минут — если вспомните про забытый документ, вернитесь
+        по ней и догрузите.
       </div>
 
       <div class="error" id="err"></div>
       <button class="primary" type="button" id="send" disabled>Отправить документы</button>
     </div>
 
-    <div id="done" hidden style="text-align:center;padding-top:14px">
-      <h2>Документы получены</h2>
-      <p class="hint" id="done-list"></p>
+    <div id="done" hidden style="padding-top:14px">
+      <h2 style="text-align:center">Документы получены</h2>
+      <p class="hint" id="done-list" style="text-align:center"></p>
       <ul class="files" id="done-files"></ul>
+
+      <div id="more-part">
+        <div class="callout" id="more-note">
+          Что-то забыли? Можно догрузить прямо сейчас — ссылка ещё действует.
+        </div>
+        <button class="primary" type="button" id="more">Догрузить ещё файлы</button>
+        <button class="ghost" type="button" id="finish"
+                style="width:100%;margin-top:10px">Готово, я всё отправил</button>
+      </div>
+
+      <div id="closed" hidden class="callout" style="text-align:center">
+        Спасибо. Ссылка закрыта — сотрудник свяжется с вами.
+      </div>
     </div>
   </main>
 
@@ -224,7 +238,7 @@
           err.textContent = res.body.detail || 'Не удалось загрузить файлы.';
           return;
         }
-        finish(good);
+        finish(good, res.body);
       })
       .catch(function () {
         good.forEach(function (i) { i.state = 'ok'; });
@@ -235,13 +249,21 @@
       });
   });
 
-  function finish(sent) {
+  function finish(sent, info) {
     document.getElementById('form-part').hidden = true;
     var done = document.getElementById('done');
     var doneList = document.getElementById('done-files');
     done.hidden = false;
+
+    var total = (info && info.total) || sent.length;
     document.getElementById('done-list').textContent =
-      sent.length > 1 ? 'Принято файлов: ' + sent.length : 'Файл принят';
+      total > 1 ? 'Принято файлов: ' + total : 'Файл принят';
+
+    if (info && info.remaining === 0) {
+      document.getElementById('more').hidden = true;
+      document.getElementById('more-note').textContent =
+        'Больше файлов к этой заявке приложить нельзя.';
+    }
 
     // Отмечаем по очереди — видно, что принят каждый, а не «что-то отправилось».
     sent.forEach(function (item, index) {
@@ -266,6 +288,28 @@
       }, 180 * (index + 1));
     });
   }
+
+  // Догрузка: возвращаем форму, уже отправленное остаётся в списке выше.
+  document.getElementById('more').addEventListener('click', function () {
+    chosen = [];
+    render();
+    err.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'Отправить документы';
+    document.getElementById('form-part').hidden = false;
+    document.getElementById('done').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  document.getElementById('finish').addEventListener('click', function () {
+    var self = this;
+    self.disabled = true;
+    fetch('/upload/' + encodeURIComponent(token) + '/finish', { method: 'POST' })
+      .then(function () {
+        document.getElementById('more-part').hidden = true;
+        document.getElementById('closed').hidden = false;
+      })
+      .catch(function () { self.disabled = false; });
+  });
 })();
 </script>
 </body>

@@ -17,6 +17,14 @@ $root = $PSScriptRoot
 $logPath = Join-Path $env:TEMP 'notarybot-tunnel.log'
 $published = ''
 
+# Два сторожа перебивают друг друга: каждый гасит чужой туннель, поднимает свой
+# и публикует его адрес — сайт в итоге указывает на уже убитый. Пускаем одного.
+$mutex = New-Object System.Threading.Mutex($false, 'Global\notarybot-demo-watchdog')
+if (-not $mutex.WaitOne(0)) {
+    Write-Host "Сторож уже запущен в другом окне. Второй не нужен." -ForegroundColor Yellow
+    exit 0
+}
+
 function Test-Url {
     param([string]$Url, [int]$Timeout = 15)
     if (-not $Url) { return $false }
