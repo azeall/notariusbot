@@ -4,4 +4,4 @@
 //
 // Пока сервис поднят через туннель, адрес меняется — его подставляет
 // update-site-url.ps1 вместе с адресом для сайта нотариуса.
-window.SERVICE_URL = "https://db2291aa4e60c7.lhr.life";
+window.SERVICE_URL = "https://201.34.133.70.sslip.io";
