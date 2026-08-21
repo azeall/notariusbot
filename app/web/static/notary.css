@@ -1,0 +1,123 @@
+:root {
+  --navy: #0a1628;
+  --navy-dark: #06101f;
+  --navy-card: #0f1e35;
+  --navy-card-2: #112240;
+  --gold: #b89a5a;
+  --gold-light: #d4b978;
+  --cream: #f0ece4;
+  --slate: #8a9ab5;
+  --danger: #d98080;
+  --ok: #7fbf8f;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--navy-dark);
+  color: var(--cream);
+  font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+a { color: var(--gold-light); }
+
+.topbar {
+  display: flex; align-items: center; gap: 22px;
+  padding: 14px 28px;
+  background: var(--navy);
+  border-bottom: 1px solid rgba(184,154,90,.18);
+  flex-wrap: wrap;
+}
+
+.topbar .brand {
+  font-family: Georgia, serif; font-size: 17px; margin-right: auto;
+}
+
+.topbar nav a { color: var(--cream); text-decoration: none; font-size: 14px; }
+.topbar nav a:hover, .topbar nav a[aria-current] { color: var(--gold); }
+.topbar nav { display: flex; gap: 18px; }
+.topbar .who { color: var(--slate); font-size: 13px; }
+
+.container { max-width: 980px; margin: 0 auto; padding: 26px 28px 60px; }
+
+h1 { font-family: Georgia, serif; font-weight: 500; font-size: 24px; margin: 0 0 6px; }
+h2 { font-family: Georgia, serif; font-weight: 500; font-size: 18px; margin: 26px 0 12px; }
+p.lead { color: var(--slate); margin: 0 0 22px; font-size: 14px; }
+
+.card {
+  background: var(--navy-card);
+  border: 1px solid rgba(184,154,90,.14);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 12px;
+}
+
+.card.row { display: flex; align-items: center; gap: 16px; }
+.card .grow { flex: 1; min-width: 0; }
+.card .t { font-weight: 600; }
+.card .m { color: var(--slate); font-size: 13px; margin-top: 3px; }
+
+.badge {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  font-size: 12px; background: rgba(184,154,90,.16); color: var(--gold-light);
+}
+.badge.new { background: rgba(127,191,143,.16); color: var(--ok); }
+.badge.closed { background: rgba(138,154,181,.16); color: var(--slate); }
+
+.empty { color: var(--slate); font-size: 14px; padding: 18px 0; }
+
+input[type=text], input[type=email], input[type=password], input[type=tel],
+input[type=number], input[type=time], textarea, select {
+  width: 100%; padding: 10px 12px;
+  background: var(--navy-dark);
+  border: 1px solid rgba(184,154,90,.22);
+  border-radius: 9px; color: var(--cream); font: inherit;
+}
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--gold); }
+textarea { resize: vertical; min-height: 130px; font-family: ui-monospace, "Cascadia Code", monospace; font-size: 13.5px; }
+
+label.field { display: block; margin-bottom: 14px; }
+label.field .cap { display: block; font-size: 13px; color: var(--slate); margin-bottom: 5px; }
+label.field .note { font-size: 12px; color: var(--slate); margin-top: 5px; }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+
+button, .btn {
+  padding: 10px 16px; border-radius: 9px; border: 0;
+  font: 600 14px/1.2 inherit; cursor: pointer;
+  background: var(--gold); color: #0a1628; text-decoration: none; display: inline-block;
+}
+button:hover, .btn:hover { background: var(--gold-light); }
+button.ghost, .btn.ghost {
+  background: transparent; color: var(--cream);
+  border: 1px solid rgba(184,154,90,.35);
+}
+button.ghost:hover { border-color: var(--gold); background: transparent; }
+button.danger { background: transparent; color: var(--danger); border: 1px solid rgba(217,128,128,.4); }
+
+.actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid rgba(184,154,90,.12); }
+th { color: var(--slate); font-weight: 500; font-size: 13px; }
+
+ul.checklist { list-style: none; padding: 0; margin: 0; }
+ul.checklist li { padding: 8px 0 8px 20px; position: relative; border-bottom: 1px solid rgba(184,154,90,.1); }
+ul.checklist li::before { content: ""; position: absolute; left: 2px; top: 15px; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
+ul.checklist li.optional::before { background: var(--slate); }
+ul.checklist li .opt { color: var(--slate); font-size: 12px; margin-left: 6px; }
+
+.timeline { list-style: none; padding: 0; margin: 0; }
+.timeline li { padding: 9px 0 9px 18px; border-left: 2px solid rgba(184,154,90,.25); margin-left: 4px; }
+.timeline .when { color: var(--slate); font-size: 12.5px; }
+
+.callout {
+  background: var(--navy-card-2); border-left: 3px solid var(--gold);
+  border-radius: 0 10px 10px 0; padding: 13px 16px; margin: 16px 0; font-size: 13.5px;
+}
+.callout code { word-break: break-all; color: var(--gold-light); }
+
+.error { color: var(--danger); font-size: 13.5px; margin-bottom: 12px; }
+
+.login { max-width: 380px; margin: 8vh auto; }

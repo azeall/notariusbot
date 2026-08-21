@@ -74,7 +74,9 @@ async def current_platform_admin(
 @router.get("/platform/login", response_class=HTMLResponse)
 async def login_form(http_request: HttpRequest):
     return _templates().TemplateResponse(
-        http_request, "platform_login.html", {"title": "Вход", "error": None}
+        http_request,
+        "platform_login.html",
+        {"stylesheet": "/static/platform.css", "title": "Вход", "error": None},
     )
 
 
@@ -96,7 +98,9 @@ async def login(
         return _templates().TemplateResponse(
             http_request,
             "platform_login.html",
-            {"title": "Вход", "error": "Неверная почта или пароль"},
+            {
+                "stylesheet": "/static/platform.css",
+                "title": "Вход", "error": "Неверная почта или пароль"},
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
@@ -129,6 +133,7 @@ async def password_form(
         http_request,
         "change_password.html",
         {
+            "stylesheet": "/static/platform.css",
             "title": "Смена пароля",
             "who": admin.full_name or admin.email,
             "action": "/platform/password",
@@ -153,6 +158,7 @@ async def change_password(
             http_request,
             "change_password.html",
             {
+                "stylesheet": "/static/platform.css",
                 "title": "Смена пароля",
                 "who": admin.full_name or admin.email,
                 "action": "/platform/password",
@@ -193,6 +199,7 @@ async def tenants_index(
         http_request,
         "platform_tenants.html",
         {
+            "stylesheet": "/static/platform.css",
             "title": "Нотариусы",
             "admin": admin,
             "tenants": tenants,
@@ -209,7 +216,9 @@ async def new_tenant_form(
     return _templates().TemplateResponse(
         http_request,
         "platform_tenant_form.html",
-        {"title": "Новый нотариус", "admin": admin, "tenant": None, "error": None},
+        {
+            "stylesheet": "/static/platform.css",
+                "title": "Новый нотариус", "admin": admin, "tenant": None, "error": None},
     )
 
 
@@ -226,7 +235,9 @@ async def edit_tenant_form(
     return _templates().TemplateResponse(
         http_request,
         "platform_tenant_form.html",
-        {"title": tenant.display_name, "admin": admin, "tenant": tenant, "error": None},
+        {
+            "stylesheet": "/static/platform.css",
+                "title": tenant.display_name, "admin": admin, "tenant": tenant, "error": None},
     )
 
 
@@ -255,7 +266,9 @@ async def save_tenant(
         return _templates().TemplateResponse(
             http_request,
             "platform_tenant_form.html",
-            {"title": "Нотариус", "admin": admin, "tenant": tenant, "error": message},
+            {
+                "stylesheet": "/static/platform.css",
+                "title": "Нотариус", "admin": admin, "tenant": tenant, "error": message},
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -391,13 +404,17 @@ async def invite_form(
         return _templates().TemplateResponse(
             http_request,
             "invite_expired.html",
-            {"title": "Ссылка недействительна"},
+            {
+                "stylesheet": "/static/platform.css",
+                "title": "Ссылка недействительна"},
             status_code=status.HTTP_410_GONE,
         )
     return _templates().TemplateResponse(
         http_request,
         "invite.html",
-        {"title": "Создание входа", "tenant": tenant, "token": token, "error": None},
+        {
+            "stylesheet": "/static/platform.css",
+                "title": "Создание входа", "tenant": tenant, "token": token, "error": None},
     )
 
 
@@ -421,6 +438,7 @@ async def accept_invite(
             http_request,
             "invite.html",
             {
+                "stylesheet": "/static/platform.css",
                 "title": "Создание входа",
                 "tenant": tenant,
                 "token": token,

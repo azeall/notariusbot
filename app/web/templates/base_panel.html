@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <title>{{ title }} — {{ tenant.display_name if tenant else 'Нотариус' }}</title>
-  <link rel="stylesheet" href="/static/panel.css">
+  <!-- Две стороны продукта выглядят по-разному намеренно: кабинет владельца
+       сервиса — в стиле его сайта, панель нотариуса — в его палитре. -->
+  <link rel="stylesheet" href="{{ stylesheet | default('/static/notary.css') }}">
 </head>
 <body>
 {% if staff %}
