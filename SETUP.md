@@ -57,3 +57,59 @@ PostgreSQL стоит **не как служба Windows**: установщик
 - Получить токен тестового бота у `@BotFather` в Telegram и вписать в `.env`
   (`TELEGRAM_BOT_TOKEN`). Понадобится на этапе Telegram-адаптера.
 - Создать приватный репозиторий на GitHub (аккаунт `azeall` уже подключён).
+
+---
+
+# Боевой сервер
+
+Развёрнут 2026-08-21. Ubuntu 24.04, Timeweb, Москва.
+
+| | |
+|---|---|
+| IP | 201.34.133.70 |
+| Адрес | https://201.34.133.70.sslip.io |
+| Доступ | `ssh -i ~/.ssh/notarybot_vps root@201.34.133.70` |
+| Код | `/opt/notarybot` |
+| Документы | `/var/lib/notarybot/storage` |
+| Выгрузки | `/var/backups/notarybot` |
+
+Вход по паролю отключён, работает только ключ. Фаервол пропускает 22, 80, 443.
+База слушает localhost и снаружи не видна. Сервис работает от пользователя
+`notarybot` без прав root.
+
+## Службы
+
+```bash
+systemctl status notarybot-web    # веб
+systemctl status notarybot-tg     # Telegram-бот
+systemctl list-timers | grep notarybot
+```
+
+Таймеры: напоминания каждые 20 минут, чистка документов по сроку раз в сутки,
+выгрузка базы и документов в 03:30.
+
+## Обновление после правок в репозитории
+
+```bash
+ssh -i ~/.ssh/notarybot_vps root@201.34.133.70 '
+  cd /opt/notarybot && git fetch -q origin && git reset -q --hard origin/main &&
+  .venv/bin/pip install -q -r requirements.txt &&
+  sudo -u notarybot .venv/bin/python -m alembic upgrade head &&
+  systemctl restart notarybot-web notarybot-tg'
+```
+
+## Секреты
+
+Лежат в `/opt/notarybot/.env`, права 600, владелец `notarybot`. В репозиторий
+не попадают. Пароль базы продублирован в `/root/.notarybot-dbpass`, пароль
+кабинета — в `/root/.notarybot-adminpass`.
+
+## Про адрес
+
+`201.34.133.70.sslip.io` — это IP, обёрнутый в имя, чтобы получить настоящий
+сертификат Let's Encrypt без покупки домена. Когда появится свой домен,
+достаточно направить его A-записью на этот IP и выпустить сертификат заново:
+
+```bash
+certbot --nginx -d ваш-домен.ru --redirect
+```
