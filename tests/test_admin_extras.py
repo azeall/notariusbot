@@ -232,3 +232,103 @@ async def test_only_active_staff_receive(session, tenant, employee):
         )
     )
     assert rows == []
+
+
+# --- отбор в журнале --------------------------------------------------------
+
+
+async def test_audit_filters_by_action(as_owner, session, tenant, employee):
+    await as_owner.post(
+        "/admin/staff",
+        data={
+            "full_name": "Новиков Пётр",
+            "email": "novikov@example.ru",
+            "password": "parol12345",
+            "role": "employee",
+        },
+    )
+    page = await as_owner.get("/admin/audit?action=staff_created")
+    # Названия действий есть и в выпадающем списке фильтра, поэтому смотрим
+    # только на таблицу записей.
+    table = page.text.split("<table>", 1)[1]
+    assert "Заведён сотрудник" in table
+    assert "Вход в панель" not in table
+
+
+async def test_audit_filters_by_actor(as_owner, session, tenant, owner, employee):
+    session.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            actor_staff_id=employee.id,
+            actor_label=employee.full_name,
+            action="document_viewed",
+            object_type="attachment",
+            details="паспорт.pdf",
+        )
+    )
+    await session.commit()
+
+    page = await as_owner.get(f"/admin/audit?actor={employee.id}")
+    assert employee.full_name in page.text
+    assert "паспорт.pdf" in page.text
+
+    other = await as_owner.get(f"/admin/audit?actor={owner.id}")
+    assert "паспорт.pdf" not in other.text
+
+
+async def test_audit_filter_by_dates(as_owner):
+    future = await as_owner.get("/admin/audit?since=2099-01-01")
+    assert "записей нет" in future.text
+
+
+async def test_broken_filter_does_not_break_page(as_owner):
+    """Фильтры приходят из адресной строки — опечатка не должна ронять страницу."""
+    page = await as_owner.get("/admin/audit?actor=не-uuid&since=вчера")
+    assert page.status_code == 200
+
+
+async def test_csv_respects_filters(as_owner, session, tenant, employee):
+    session.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            actor_staff_id=employee.id,
+            actor_label=employee.full_name,
+            action="document_viewed",
+            object_type="attachment",
+            details="паспорт.pdf",
+        )
+    )
+    await session.commit()
+
+    everything = (await as_owner.get("/admin/audit.csv")).content.decode("utf-8")
+    assert "паспорт.pdf" in everything
+
+    only_logins = (await as_owner.get("/admin/audit.csv?action=login")).content.decode("utf-8")
+    assert "паспорт.pdf" not in only_logins
+
+
+async def test_staff_creation_is_logged(as_owner, session, tenant):
+    await as_owner.post(
+        "/admin/staff",
+        data={
+            "full_name": "Новиков Пётр",
+            "email": "novikov@example.ru",
+            "password": "parol12345",
+            "role": "employee",
+        },
+    )
+    entry = await session.scalar(
+        select(AuditLog).where(AuditLog.action == "staff_created")
+    )
+    assert entry is not None
+    assert "Новиков Пётр" in entry.details
+    assert "novikov@example.ru" in entry.details
+
+
+async def test_staff_toggle_is_logged(as_owner, session, employee):
+    await as_owner.post(f"/admin/staff/{employee.id}/toggle")
+    entry = await session.scalar(
+        select(AuditLog).where(AuditLog.action == "staff_disabled")
+    )
+    assert entry is not None
+    assert employee.full_name in entry.details

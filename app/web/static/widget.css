@@ -21,7 +21,7 @@ html, body {
 body {
   background: var(--navy);
   color: var(--cream);
-  font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -42,35 +42,35 @@ body {
 
 header {
   flex-shrink: 0;
-  padding: 16px 20px 14px;
+  padding: 20px 24px 16px;
   border-bottom: 1px solid var(--border, rgba(184,154,90,0.16));
   background: var(--navy);
 }
 
 header .name {
   font-family: var(--heading, Georgia, "Times New Roman", serif);
-  font-size: 17px;
+  font-size: 19px;
   letter-spacing: 0.2px;
 }
 
-header .sub { color: var(--slate); font-size: 12.5px; margin-top: 3px; }
+header .sub { color: var(--slate); font-size: 13px; margin-top: 4px; }
 
 /* --- лента переписки --- */
 
 .chat {
   flex: 1;
   overflow-y: auto;
-  padding: 18px 20px 8px;
+  padding: 22px 24px 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .msg {
-  max-width: 86%;
-  padding: 11px 14px;
-  border-radius: 14px;
-  font-size: 14.5px;
+  max-width: 88%;
+  padding: 13px 16px;
+  border-radius: 16px;
+  font-size: 15.5px;
   line-height: 1.5;
   animation: rise 0.22s ease;
   white-space: pre-wrap;
@@ -111,10 +111,10 @@ header .sub { color: var(--slate); font-size: 12.5px; margin-top: 3px; }
 
 .msg ul.docs { list-style: none; padding: 0; margin: 6px 0 0; }
 .msg ul.docs li {
-  padding: 6px 0 6px 18px;
+  padding: 8px 0 8px 20px;
   position: relative;
   border-top: 1px solid rgba(184, 154, 90, 0.12);
-  font-size: 14px;
+  font-size: 15px;
 }
 .msg ul.docs li:first-child { border-top: 0; }
 .msg ul.docs li::before {
@@ -145,7 +145,7 @@ header .sub { color: var(--slate); font-size: 12.5px; margin-top: 3px; }
 .composer {
   flex-shrink: 0;
   border-top: 1px solid var(--border, rgba(184,154,90,0.16));
-  padding: 12px 20px 16px;
+  padding: 14px 24px 18px;
   background: var(--navy);
 }
 
@@ -153,9 +153,9 @@ header .sub { color: var(--slate); font-size: 12.5px; margin-top: 3px; }
   display: flex;
   flex-direction: column;
   gap: 7px;
-  max-height: 46vh;
+  max-height: 42vh;
   overflow-y: auto;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .choices:empty { display: none; }
@@ -165,12 +165,12 @@ header .sub { color: var(--slate); font-size: 12.5px; margin-top: 3px; }
   text-align: left;
   background: var(--navy-card);
   border: 1px solid var(--border, rgba(184,154,90,0.22));
-  border-radius: 11px;
-  padding: 11px 14px;
+  border-radius: 12px;
+  padding: 13px 16px;
   color: var(--cream);
   cursor: pointer;
   font: inherit;
-  font-size: 14px;
+  font-size: 15px;
   transition: border-color 0.15s, background 0.15s;
 }
 
@@ -192,20 +192,20 @@ header .sub { color: var(--slate); font-size: 12.5px; margin-top: 3px; }
 
 .row input[type="text"], .row input[type="tel"] {
   flex: 1;
-  padding: 12px 14px;
+  padding: 14px 16px;
   background: var(--navy-card);
   border: 1px solid var(--border, rgba(184,154,90,0.22));
   border-radius: 11px;
   color: var(--cream);
   font: inherit;
-  font-size: 14.5px;
+  font-size: 15.5px;
 }
 
 .row input:focus { outline: none; border-color: var(--gold); }
 
 .row button.send {
   flex-shrink: 0;
-  width: 44px; height: 44px;
+  width: 50px; height: 50px;
   border-radius: 11px;
   border: 0;
   background: var(--gold);

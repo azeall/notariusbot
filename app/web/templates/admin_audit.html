@@ -2,17 +2,68 @@
 {% block content %}
 <h1>Журнал доступа</h1>
 <p class="lead">
-  Кто и когда обращался к документам клиентов. По 152-ФЗ оператор обязан уметь
-  ответить на этот вопрос — выгрузка ниже и есть тот файл, который показывают проверяющему.
+  Кто и когда обращался к документам клиентов и кому открывали доступ.
+  По 152-ФЗ оператор обязан уметь ответить на этот вопрос — обычно спрашивают
+  про конкретного человека или период, поэтому здесь есть отбор.
 </p>
 
-<div class="actions" style="margin-bottom:18px">
-  <a class="btn" href="/admin/audit.csv">Выгрузить в CSV</a>
+<div class="card">
+  <form method="get" action="/admin/audit">
+    <div class="grid2">
+      <label class="field">
+        <span class="cap">Действие</span>
+        <select name="action">
+          <option value="">любое</option>
+          {% for code, name in labels.items() %}
+            <option value="{{ code }}" {% if filters.action == code %}selected{% endif %}>
+              {{ name }}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        <span class="cap">Сотрудник</span>
+        <select name="actor">
+          <option value="">любой</option>
+          {% for person in people %}
+            <option value="{{ person.id }}" {% if filters.actor == person.id|string %}selected{% endif %}>
+              {{ person.full_name }}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <div class="grid2">
+      <label class="field">
+        <span class="cap">С даты</span>
+        <input type="date" name="since" value="{{ filters.since }}">
+      </label>
+      <label class="field">
+        <span class="cap">По дату</span>
+        <input type="date" name="until" value="{{ filters.until }}">
+      </label>
+    </div>
+
+    <div class="actions">
+      <button type="submit">Показать</button>
+      <a class="btn ghost" href="/admin/audit">Сбросить</a>
+      <a class="btn ghost"
+         href="/admin/audit.csv?action={{ filters.action }}&actor={{ filters.actor }}&since={{ filters.since }}&until={{ filters.until }}">
+        Выгрузить в CSV
+      </a>
+    </div>
+  </form>
 </div>
 
 {% if not entries %}
-  <div class="empty">Записей пока нет.</div>
+  <div class="empty">По такому отбору записей нет.</div>
 {% else %}
+  <p class="lead" style="margin:22px 0 12px">
+    Найдено записей: <b>{{ total }}</b>{% if total > entries|length %},
+    показаны последние {{ entries|length }}. В выгрузке — все найденные{% endif %}.
+  </p>
+
   <div class="card">
     <table>
       <tr>
@@ -32,8 +83,5 @@
       {% endfor %}
     </table>
   </div>
-  <p class="lead" style="margin-top:12px">
-    Показаны последние 200 записей. В выгрузке — все.
-  </p>
 {% endif %}
 {% endblock %}

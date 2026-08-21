@@ -63,13 +63,97 @@
   </div>
 {% endfor %}
 
-{% if req.submission_mode.value == 'documents' %}
+{% if req.submission_mode.value == 'documents' and rights.can_edit %}
   <form method="post" action="/staff/requests/{{ req.id }}/upload-link" class="actions">
     <button class="ghost" type="submit">Выдать ссылку на догрузку</button>
   </form>
 {% endif %}
 
-{% if next_statuses %}
+<h2>Кто ведёт заявку</h2>
+<div class="card">
+  <table>
+    <tr>
+      <th>Ведущий</th>
+      <td>{{ req.assigned_staff.full_name if req.assigned_staff else 'никто не взял' }}</td>
+    </tr>
+    {% for p in participants if p.is_active %}
+      <tr>
+        <th>Вместе</th>
+        <td>
+          {{ p.staff.full_name }}
+          {% if rights.can_manage_participants %}
+            <form method="post" action="/staff/requests/{{ req.id }}/participants/{{ p.id }}/remove"
+                  style="display:inline;margin-left:10px">
+              <button class="danger" type="submit">Отключить</button>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+  </table>
+</div>
+
+{% if not rights.can_edit %}
+  <div class="callout">
+    Заявку ведёт другой сотрудник, поэтому менять её нельзя — так двое
+    не правят одно дело вслепую. Если нужна совместная работа, попроситесь:
+    ведущий получит запрос и подтвердит.
+  </div>
+{% endif %}
+
+{% if rights.can_ask_to_join %}
+  <div class="card">
+    <form method="post" action="/staff/requests/{{ req.id }}/join">
+      <label class="field">
+        <span class="cap">Зачем подключиться (необязательно)</span>
+        <input type="text" name="note" placeholder="Помогу с документами по сделке">
+      </label>
+      <button type="submit">Попроситься в работу</button>
+    </form>
+  </div>
+{% endif %}
+
+{% if rights.has_pending_request %}
+  <div class="callout">Запрос отправлен. Ждём ответа ведущего сотрудника.</div>
+{% endif %}
+
+{% set waiting = participants | selectattr('status.value', 'equalto', 'requested') | list %}
+{% if waiting and rights.can_manage_participants %}
+  <h2>Просятся в помощь</h2>
+  {% for p in waiting %}
+    <div class="card row">
+      <div class="grow">
+        <div class="t">{{ p.staff.full_name }}</div>
+        {% if p.note %}<div class="m">{{ p.note }}</div>{% endif %}
+      </div>
+      <form method="post" action="/staff/requests/{{ req.id }}/participants/{{ p.id }}/decide" style="margin:0">
+        <input type="hidden" name="accept" value="1">
+        <button type="submit">Подключить</button>
+      </form>
+      <form method="post" action="/staff/requests/{{ req.id }}/participants/{{ p.id }}/decide" style="margin:0">
+        <button class="ghost" type="submit">Отказать</button>
+      </form>
+    </div>
+  {% endfor %}
+{% endif %}
+
+{% if rights.can_manage_participants and colleagues %}
+  <div class="card">
+    <form method="post" action="/staff/requests/{{ req.id }}/participants">
+      <label class="field">
+        <span class="cap">Подключить сотрудника</span>
+        <select name="staff_id">
+          {% for person in colleagues %}
+            <option value="{{ person.id }}">{{ person.full_name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit">Подключить</button>
+    </form>
+  </div>
+{% endif %}
+
+{% if next_statuses and rights.can_edit %}
   <h2>Изменить статус</h2>
   <div class="card">
     <form method="post" action="/staff/requests/{{ req.id }}/status">

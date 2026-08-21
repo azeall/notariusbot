@@ -81,6 +81,11 @@ class Request(Base, UUIDPrimaryKey, TenantScoped, Timestamps):
         cascade="all, delete-orphan",
         order_by="RequestEvent.created_at",
     )
+    participants: Mapped[list["RequestParticipant"]] = relationship(  # noqa: F821
+        back_populates="request",
+        cascade="all, delete-orphan",
+        order_by="RequestParticipant.created_at",
+    )
 
     @property
     def is_open(self) -> bool:

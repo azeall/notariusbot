@@ -2,10 +2,11 @@ import uuid
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request as HttpRequest, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from sqlalchemy import func, select
+from sqlalchemy import false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.domain import access, participation
 from app.domain.requests import claim_request, issue_upload_token, transition_request
 from app.domain.security import hash_password, verify_password
 from app.domain.statuses import STATUS_LABELS, ALLOWED_TRANSITIONS, TransitionError
@@ -13,7 +14,10 @@ from app.domain.storage import DocumentStorage
 from app.models import (
     Attachment,
     AuditLog,
+    PARTICIPATION_LABELS,
+    ParticipationStatus,
     Request,
+    RequestParticipant,
     RequestStatus,
     Staff,
     Tenant,
@@ -190,7 +194,20 @@ async def queue(
     staff: Staff = Depends(current_staff),
     session: AsyncSession = Depends(db_session),
 ):
-    """Очередь заявок: сначала ничьи, затем взятые этим сотрудником."""
+    """Очередь заявок.
+
+    Сотрудник видит ничьи, свои и — отдельным списком — чужие: без этого
+    непонятно, к кому проситься в помощь. Нотариус видит то же самое, но чужие
+    для него это «в работе у сотрудников», и он может открыть любую.
+    """
+    open_statuses = [
+        RequestStatus.CLAIMED,
+        RequestStatus.AWAITING_DOCUMENTS,
+        RequestStatus.AWAITING_VISIT,
+    ]
+    common = (selectinload(Request.client), selectinload(Request.attachments),
+              selectinload(Request.assigned_staff), selectinload(Request.participants))
+
     unclaimed = list(
         await session.scalars(
             select(Request)
@@ -198,8 +215,18 @@ async def queue(
                 Request.tenant_id == staff.tenant_id,
                 Request.status == RequestStatus.NEW,
             )
-            .options(selectinload(Request.client), selectinload(Request.attachments))
+            .options(*common)
             .order_by(Request.created_at)
+        )
+    )
+
+    # Свои — это и те, что веду, и те, где помогаю.
+    helping_ids = list(
+        await session.scalars(
+            select(RequestParticipant.request_id).where(
+                RequestParticipant.staff_id == staff.id,
+                RequestParticipant.status == ParticipationStatus.ACTIVE,
+            )
         )
     )
     mine = list(
@@ -207,15 +234,50 @@ async def queue(
             select(Request)
             .where(
                 Request.tenant_id == staff.tenant_id,
-                Request.assigned_staff_id == staff.id,
-                Request.status.notin_(
-                    [RequestStatus.COMPLETED, RequestStatus.REJECTED, RequestStatus.CANCELLED]
+                Request.status.in_(open_statuses),
+                or_(
+                    Request.assigned_staff_id == staff.id,
+                    Request.id.in_(helping_ids) if helping_ids else false(),
                 ),
             )
-            .options(selectinload(Request.client), selectinload(Request.attachments))
+            .options(*common)
             .order_by(Request.claimed_at)
         )
     )
+
+    mine_ids = {r.id for r in mine}
+    others = [
+        r
+        for r in await session.scalars(
+            select(Request)
+            .where(
+                Request.tenant_id == staff.tenant_id,
+                Request.status.in_(open_statuses),
+                Request.assigned_staff_id.is_not(None),
+            )
+            .options(*common)
+            .order_by(Request.claimed_at)
+        )
+        if r.id not in mine_ids
+    ]
+
+    # Просьбы о помощи по заявкам, которые ведёт этот сотрудник.
+    pending = list(
+        await session.scalars(
+            select(RequestParticipant)
+            .join(Request, Request.id == RequestParticipant.request_id)
+            .where(
+                RequestParticipant.status == ParticipationStatus.REQUESTED,
+                Request.assigned_staff_id == staff.id,
+            )
+            .options(
+                selectinload(RequestParticipant.staff),
+                selectinload(RequestParticipant.request),
+            )
+            .order_by(RequestParticipant.created_at)
+        )
+    )
+
     tenant = await session.get(Tenant, staff.tenant_id)
     return _templates().TemplateResponse(
         http_request,
@@ -226,6 +288,8 @@ async def queue(
             "tenant": tenant,
             "unclaimed": unclaimed,
             "mine": mine,
+            "others": others,
+            "pending": pending,
             "labels": STATUS_LABELS,
         },
     )
@@ -259,10 +323,29 @@ async def _load_request(
             selectinload(Request.client),
             selectinload(Request.attachments),
             selectinload(Request.events),
+            selectinload(Request.assigned_staff),
+            selectinload(Request.participants).selectinload(RequestParticipant.staff),
         )
     )
     if request is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Заявка не найдена")
+    return request
+
+
+async def _editable(
+    session: AsyncSession, staff: Staff, request_id: uuid.UUID
+) -> Request:
+    """Заявка, которую этот сотрудник вправе менять.
+
+    Раньше проверки не было вовсе: любой мог сменить статус чужой заявки,
+    и по журналу потом не разобрать, кто что решил.
+    """
+    request = await _load_request(session, staff, request_id)
+    if not access.evaluate(request, staff).can_edit:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Заявку ведёт другой сотрудник. Попроситесь в работу, чтобы вносить изменения.",
+        )
     return request
 
 
@@ -274,7 +357,24 @@ async def request_detail(
     session: AsyncSession = Depends(db_session),
 ):
     request = await _load_request(session, staff, request_id)
+    rights = access.evaluate(request, staff)
     tenant = await session.get(Tenant, staff.tenant_id)
+
+    # Нотариусу показываем, кого ещё можно подключить.
+    colleagues = []
+    if rights.can_manage_participants:
+        busy = {p.staff_id for p in request.participants if p.is_active}
+        busy.add(request.assigned_staff_id)
+        colleagues = [
+            person
+            for person in await session.scalars(
+                select(Staff)
+                .where(Staff.tenant_id == staff.tenant_id, Staff.is_active.is_(True))
+                .order_by(Staff.full_name)
+            )
+            if person.id not in busy
+        ]
+
     return _templates().TemplateResponse(
         http_request,
         "staff_request.html",
@@ -287,6 +387,10 @@ async def request_detail(
             "req": request,
             "labels": STATUS_LABELS,
             "next_statuses": sorted(ALLOWED_TRANSITIONS.get(request.status, frozenset())),
+            "rights": rights,
+            "participants": request.participants,
+            "part_labels": PARTICIPATION_LABELS,
+            "colleagues": colleagues,
         },
     )
 
@@ -316,7 +420,7 @@ async def change_status(
     staff: Staff = Depends(current_staff),
     session: AsyncSession = Depends(db_session),
 ):
-    request = await _load_request(session, staff, request_id)
+    request = await _editable(session, staff, request_id)
     try:
         await transition_request(
             session,
@@ -340,11 +444,101 @@ async def new_upload_link(
     session: AsyncSession = Depends(db_session),
 ):
     """Выдать клиенту новую одноразовую ссылку на догрузку документов."""
-    request = await _load_request(session, staff, request_id)
+    request = await _editable(session, staff, request_id)
     _, token = await issue_upload_token(session, request=request)
     url = f"{public_base_url(http_request)}/upload/{token}"
     return RedirectResponse(
         f"/staff/requests/{request_id}?link={url}", status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+@router.post("/requests/{request_id}/join")
+async def ask_to_join(
+    request_id: uuid.UUID,
+    note: str = Form(""),
+    staff: Staff = Depends(current_staff),
+    session: AsyncSession = Depends(db_session),
+):
+    """Попроситься в помощь к ведущему сотруднику."""
+    request = await _load_request(session, staff, request_id)
+    try:
+        await participation.ask_to_join(session, request=request, staff=staff, note=note)
+    except participation.ParticipationError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return RedirectResponse(
+        f"/staff/requests/{request_id}", status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+@router.post("/requests/{request_id}/participants/{participant_id}/decide")
+async def decide_participation(
+    request_id: uuid.UUID,
+    participant_id: uuid.UUID,
+    accept: str = Form(""),
+    staff: Staff = Depends(current_staff),
+    session: AsyncSession = Depends(db_session),
+):
+    """Ведущий или нотариус отвечает на просьбу о помощи."""
+    request = await _load_request(session, staff, request_id)
+    if not access.evaluate(request, staff).can_manage_participants:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Решает ведущий сотрудник или нотариус"
+        )
+    try:
+        await participation.decide(
+            session,
+            request=request,
+            participant_id=participant_id,
+            decided_by=staff,
+            accept=bool(accept),
+        )
+    except participation.ParticipationError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return RedirectResponse(
+        f"/staff/requests/{request_id}", status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+@router.post("/requests/{request_id}/participants")
+async def add_participant(
+    request_id: uuid.UUID,
+    staff_id: uuid.UUID = Form(...),
+    staff: Staff = Depends(current_staff),
+    session: AsyncSession = Depends(db_session),
+):
+    """Нотариус подключает сотрудника без спроса."""
+    request = await _load_request(session, staff, request_id)
+    try:
+        await participation.add_directly(
+            session, request=request, staff_id=staff_id, added_by=staff
+        )
+    except participation.ParticipationError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return RedirectResponse(
+        f"/staff/requests/{request_id}", status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+@router.post("/requests/{request_id}/participants/{participant_id}/remove")
+async def remove_participant(
+    request_id: uuid.UUID,
+    participant_id: uuid.UUID,
+    staff: Staff = Depends(current_staff),
+    session: AsyncSession = Depends(db_session),
+):
+    request = await _load_request(session, staff, request_id)
+    if not access.evaluate(request, staff).can_manage_participants:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Решает ведущий сотрудник или нотариус"
+        )
+    try:
+        await participation.remove(
+            session, request=request, participant_id=participant_id, removed_by=staff
+        )
+    except participation.ParticipationError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return RedirectResponse(
+        f"/staff/requests/{request_id}", status_code=status.HTTP_303_SEE_OTHER
     )
 
 

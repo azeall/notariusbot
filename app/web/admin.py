@@ -6,7 +6,7 @@ from datetime import UTC, date, datetime, time
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request as HttpRequest, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -343,29 +343,75 @@ async def delete_day_off(
 
 AUDIT_ACTION_LABELS = {
     "login": "Вход в панель",
+    "staff_created": "Заведён сотрудник",
+    "staff_disabled": "Сотрудник отключён",
+    "staff_enabled": "Сотрудник включён",
     "documents_uploaded": "Клиент загрузил документы",
     "document_viewed": "Сотрудник открыл документ",
     "document_purged": "Документ удалён по сроку хранения",
 }
 
 
+def _apply_audit_filters(query, *, action: str, actor: str, since: str, until: str):
+    """Отбор журнала. Кривые значения игнорируем, а не показываем ошибку:
+    фильтры приходят из адресной строки, и ломать страницу из-за опечатки незачем."""
+    if action:
+        query = query.where(AuditLog.action == action)
+    if actor:
+        try:
+            query = query.where(AuditLog.actor_staff_id == uuid.UUID(actor))
+        except ValueError:
+            pass
+    if since:
+        try:
+            query = query.where(
+                AuditLog.created_at >= datetime.combine(date.fromisoformat(since), time.min).replace(tzinfo=UTC)
+            )
+        except ValueError:
+            pass
+    if until:
+        try:
+            query = query.where(
+                AuditLog.created_at <= datetime.combine(date.fromisoformat(until), time.max).replace(tzinfo=UTC)
+            )
+        except ValueError:
+            pass
+    return query
+
+
 @router.get("/audit", response_class=HTMLResponse)
 async def audit_page(
     http_request: HttpRequest,
+    action: str = "",
+    actor: str = "",
+    since: str = "",
+    until: str = "",
     owner: Staff = Depends(current_owner),
     session: AsyncSession = Depends(db_session),
 ):
     """Журнал доступа к персональным данным.
 
-    По 152-ФЗ оператор должен уметь показать, кто и когда обращался к документам
-    клиентов. Поэтому здесь и просмотр, и выгрузка одним файлом.
+    По 152-ФЗ оператор должен уметь показать, кто и когда обращался к данным
+    клиентов. Без отбора по сотруднику и действию такой ответ приходится
+    искать глазами по сотням строк.
     """
-    entries = list(
+    query = select(AuditLog).where(AuditLog.tenant_id == owner.tenant_id)
+    query = _apply_audit_filters(query, action=action, actor=actor, since=since, until=until)
+
+    entries = list(await session.scalars(query.order_by(AuditLog.created_at.desc()).limit(200)))
+    total = await session.scalar(
+        _apply_audit_filters(
+            select(func.count(AuditLog.id)).where(AuditLog.tenant_id == owner.tenant_id),
+            action=action,
+            actor=actor,
+            since=since,
+            until=until,
+        )
+    )
+
+    people = list(
         await session.scalars(
-            select(AuditLog)
-            .where(AuditLog.tenant_id == owner.tenant_id)
-            .order_by(AuditLog.created_at.desc())
-            .limit(200)
+            select(Staff).where(Staff.tenant_id == owner.tenant_id).order_by(Staff.full_name)
         )
     )
     tenant = await session.get(Tenant, owner.tenant_id)
@@ -377,23 +423,36 @@ async def audit_page(
             "staff": owner,
             "tenant": tenant,
             "entries": entries,
+            "total": int(total or 0),
             "labels": AUDIT_ACTION_LABELS,
+            "people": people,
+            "filters": {"action": action, "actor": actor, "since": since, "until": until},
         },
     )
 
 
 @router.get("/audit.csv")
 async def audit_csv(
-    owner: Staff = Depends(current_owner), session: AsyncSession = Depends(db_session)
+    action: str = "",
+    actor: str = "",
+    since: str = "",
+    until: str = "",
+    owner: Staff = Depends(current_owner),
+    session: AsyncSession = Depends(db_session),
 ) -> Response:
-    """Выгрузка журнала целиком — то, что показывают проверяющему."""
-    entries = list(
-        await session.scalars(
-            select(AuditLog)
-            .where(AuditLog.tenant_id == owner.tenant_id)
-            .order_by(AuditLog.created_at)
-        )
+    """Выгрузка журнала — то, что показывают проверяющему.
+
+    Фильтры те же, что на странице: проверяющий обычно спрашивает про
+    конкретного сотрудника или период, а не про всё сразу.
+    """
+    query = _apply_audit_filters(
+        select(AuditLog).where(AuditLog.tenant_id == owner.tenant_id),
+        action=action,
+        actor=actor,
+        since=since,
+        until=until,
     )
+    entries = list(await session.scalars(query.order_by(AuditLog.created_at)))
 
     buffer = io.StringIO()
     writer = csv.writer(buffer, delimiter=";")
@@ -461,13 +520,28 @@ async def add_staff(
     if len(password) < 8:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Пароль короче 8 символов")
 
+    person = Staff(
+        tenant_id=owner.tenant_id,
+        full_name=full_name.strip(),
+        email=email.strip().lower(),
+        password_hash=hash_password(password),
+        role=StaffRole(role),
+    )
+    session.add(person)
+    await session.flush()
+
+    # Новый сотрудник получает доступ к паспортам клиентов — это событие
+    # обязано быть в журнале, иначе картина «кто имел доступ» неполна.
     session.add(
-        Staff(
+        AuditLog(
             tenant_id=owner.tenant_id,
-            full_name=full_name.strip(),
-            email=email.strip().lower(),
-            password_hash=hash_password(password),
-            role=StaffRole(role),
+            actor_staff_id=owner.id,
+            actor_label=owner.full_name,
+            action="staff_created",
+            object_type="staff",
+            object_id=str(person.id),
+            details=f"{person.full_name} · {person.email} · "
+            f"{'владелец' if person.can_manage_catalog else 'сотрудник'}",
         )
     )
     return RedirectResponse("/admin/staff", status_code=status.HTTP_303_SEE_OTHER)
@@ -523,4 +597,15 @@ async def toggle_staff(
     if person.id == owner.id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Нельзя отключить самого себя")
     person.is_active = not person.is_active
+    session.add(
+        AuditLog(
+            tenant_id=owner.tenant_id,
+            actor_staff_id=owner.id,
+            actor_label=owner.full_name,
+            action="staff_enabled" if person.is_active else "staff_disabled",
+            object_type="staff",
+            object_id=str(person.id),
+            details=person.full_name,
+        )
+    )
     return RedirectResponse("/admin/staff", status_code=status.HTTP_303_SEE_OTHER)

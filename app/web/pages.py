@@ -85,9 +85,9 @@ _EMBED_TEMPLATE = """
     "cursor:pointer;box-shadow:0 10px 30px rgba(10,22,40,.35);}",
     ".nb-launcher:hover{filter:brightness(1.06);}",
     ".nb-overlay{position:fixed;inset:0;z-index:2147483001;background:rgba(4,13,24,.72);",
-    "display:none;align-items:center;justify-content:center;padding:16px;}",
+    "display:none;align-items:center;justify-content:center;padding:12px;}",
     ".nb-overlay[data-open='1']{display:flex;}",
-    ".nb-frame{width:min(460px,100%);height:min(680px,92vh);border:0;border-radius:16px;",
+    ".nb-frame{width:min(560px,100%);height:min(820px,94vh);border:0;border-radius:18px;",
     "background:#0a1628;box-shadow:0 24px 70px rgba(0,0,0,.5);}",
     ".nb-close{position:absolute;top:18px;right:22px;background:transparent;border:0;",
     "color:#f0ece4;font-size:30px;line-height:1;cursor:pointer;}"

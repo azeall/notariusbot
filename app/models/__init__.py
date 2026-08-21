@@ -10,6 +10,11 @@ from app.models.enums import (
     StaffRole,
     SubmissionMode,
 )
+from app.models.participation import (
+    PARTICIPATION_LABELS,
+    ParticipationStatus,
+    RequestParticipant,
+)
 from app.models.platform import PlatformAdmin
 from app.models.request import Request, RequestEvent
 from app.models.schedule import Appointment, DayOff, WorkingHours
@@ -25,9 +30,12 @@ __all__ = [
     "Channel",
     "Client",
     "DayOff",
+    "PARTICIPATION_LABELS",
+    "ParticipationStatus",
     "PlatformAdmin",
     "Request",
     "RequestEvent",
+    "RequestParticipant",
     "RequestStatus",
     "Service",
     "ServiceDocument",

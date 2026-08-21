@@ -1,46 +1,115 @@
 {% extends "base_panel.html" %}
 {% block content %}
 <h1>Заявки</h1>
-<p class="lead">Свободные заявки берёт любой сотрудник — кто первым нажал, тот и ведёт.</p>
+<p class="lead">
+  {% if staff.can_manage_catalog %}
+    Видно всё: свободные заявки, ваши и те, что ведут сотрудники.
+  {% else %}
+    Свободную заявку берёт любой — кто первым нажал, тот и ведёт. В чужую можно
+    попроситься в помощь.
+  {% endif %}
+</p>
 
 <div class="callout" id="fresh" hidden>
   Пришли новые заявки: <b id="fresh-count">0</b>
   <button type="button" onclick="location.reload()" style="margin-left:12px">Обновить</button>
 </div>
 
-<h2>Ничьи ({{ unclaimed|length }})</h2>
+{% if pending %}
+  <h2>Просятся в помощь ({{ pending|length }})</h2>
+  {% for row in pending %}
+    <div class="card row">
+      <div class="grow">
+        <div class="t">{{ row.staff.full_name }} — заявка № {{ row.request.public_number }}</div>
+        <div class="m">
+          {{ row.request.service_title }}
+          {%- if row.note %} · {{ row.note }}{% endif %}
+        </div>
+      </div>
+      <form method="post" action="/staff/requests/{{ row.request_id }}/participants/{{ row.id }}/decide" style="margin:0">
+        <input type="hidden" name="accept" value="1">
+        <button type="submit">Подключить</button>
+      </form>
+      <form method="post" action="/staff/requests/{{ row.request_id }}/participants/{{ row.id }}/decide" style="margin:0">
+        <button class="ghost" type="submit">Отказать</button>
+      </form>
+    </div>
+  {% endfor %}
+{% endif %}
+
+<h2>Свободные ({{ unclaimed|length }})</h2>
 {% if not unclaimed %}
   <div class="empty">Пусто. Все заявки разобраны.</div>
 {% endif %}
-{% for request in unclaimed %}
+{% for item in unclaimed %}
   <div class="card row">
     <div class="grow">
-      <div class="t">№ {{ request.public_number }} · {{ request.service_title }}</div>
+      <div class="t">№ {{ item.public_number }} · {{ item.service_title }}</div>
       <div class="m">
-        {{ request.client.full_name }} · {{ request.client.phone }}
-        {%- if request.attachments %} · документов: {{ request.attachments|length }}{% endif %}
-        {%- if request.submission_mode.value == 'visit' %} · личный визит{% endif %}
+        {{ item.client.full_name }} · {{ item.client.phone }}
+        {%- if item.attachments %} · документов: {{ item.attachments|length }}{% endif %}
+        {%- if item.submission_mode.value == 'visit' %} · личный визит{% endif %}
       </div>
     </div>
-    <span class="badge new">{{ labels[request.status] }}</span>
-    <form method="post" action="/staff/requests/{{ request.id }}/claim" style="margin:0">
+    <span class="badge new">{{ labels[item.status] }}</span>
+    <form method="post" action="/staff/requests/{{ item.id }}/claim" style="margin:0">
       <button type="submit">Взять</button>
     </form>
   </div>
 {% endfor %}
 
-<h2>Мои в работе ({{ mine|length }})</h2>
+<h2>{{ 'Мои в работе' if not staff.can_manage_catalog else 'Веду сам' }} ({{ mine|length }})</h2>
 {% if not mine %}
   <div class="empty">Вы пока ничего не взяли.</div>
 {% endif %}
-{% for request in mine %}
+{% for item in mine %}
   <div class="card row">
     <div class="grow">
-      <div class="t">№ {{ request.public_number }} · {{ request.service_title }}</div>
-      <div class="m">{{ request.client.full_name }} · {{ request.client.phone }}</div>
+      <div class="t">
+        № {{ item.public_number }} · {{ item.service_title }}
+        {% if item.assigned_staff_id != staff.id %}<span class="badge">помогаю</span>{% endif %}
+      </div>
+      <div class="m">
+        {{ item.client.full_name }} · {{ item.client.phone }}
+        {%- set active = item.participants | selectattr('is_active') | list %}
+        {%- if active %} · вместе: {{ active|length }}{% endif %}
+      </div>
     </div>
-    <span class="badge">{{ labels[request.status] }}</span>
-    <a class="btn ghost" href="/staff/requests/{{ request.id }}">Открыть</a>
+    <span class="badge">{{ labels[item.status] }}</span>
+    <a class="btn ghost" href="/staff/requests/{{ item.id }}">Открыть</a>
+  </div>
+{% endfor %}
+
+<h2>
+  {{ 'В работе у сотрудников' if staff.can_manage_catalog else 'У других сотрудников' }}
+  ({{ others|length }})
+</h2>
+{% if not others %}
+  <div class="empty">Никто ничего не ведёт.</div>
+{% else %}
+  <p class="lead" style="margin-bottom:14px">
+    {% if staff.can_manage_catalog %}
+      Можно открыть любую и вмешаться: подключить второго сотрудника, сменить
+      статус, посмотреть переписку по заявке.
+    {% else %}
+      Открыть можно, менять нельзя. Нужна совместная работа — попроситесь
+      в помощь, ведущий подтвердит.
+    {% endif %}
+  </p>
+{% endif %}
+{% for item in others %}
+  <div class="card row">
+    <div class="grow">
+      <div class="t">№ {{ item.public_number }} · {{ item.service_title }}</div>
+      <div class="m">
+        ведёт {{ item.assigned_staff.full_name if item.assigned_staff else '—' }}
+        · {{ item.client.full_name }}
+        {%- set active = item.participants | selectattr('is_active') | list %}
+        {%- if active %} · вместе: {{ active|length }}{% endif %}
+      </div>
+    </div>
+    <span class="badge">{{ labels[item.status] }}</span>
+    <a class="btn ghost" href="/staff/requests/{{ item.id }}">Открыть</a>
   </div>
 {% endfor %}
 
