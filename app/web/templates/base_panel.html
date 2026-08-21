@@ -20,7 +20,7 @@
       <a href="/admin/audit">Журнал</a>
     {% endif %}
   </nav>
-  <span class="who">{{ staff.full_name }}</span>
+  <a href="/staff/password" class="who" style="text-decoration:none">{{ staff.full_name }}</a>
   <form method="post" action="/staff/logout" style="margin:0">
     <button class="ghost" type="submit">Выйти</button>
   </form>

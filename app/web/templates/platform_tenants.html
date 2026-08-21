@@ -3,7 +3,7 @@
 <div class="topbar" style="margin:-26px -28px 26px">
   <div class="brand">Сервис заявок</div>
   <nav><a href="/platform">Нотариусы</a></nav>
-  <span class="who">{{ admin.full_name or admin.email }}</span>
+  <a href="/platform/password" class="who" style="text-decoration:none">{{ admin.full_name or admin.email }}</a>
   <form method="post" action="/platform/logout" style="margin:0">
     <button class="ghost" type="submit">Выйти</button>
   </form>

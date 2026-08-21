@@ -118,6 +118,67 @@ async def logout() -> Response:
     return response
 
 
+# --- смена пароля -----------------------------------------------------------
+
+
+@router.get("/platform/password", response_class=HTMLResponse)
+async def password_form(
+    http_request: HttpRequest, admin: PlatformAdmin = Depends(current_platform_admin)
+):
+    return _templates().TemplateResponse(
+        http_request,
+        "change_password.html",
+        {
+            "title": "Смена пароля",
+            "who": admin.full_name or admin.email,
+            "action": "/platform/password",
+            "back": "/platform",
+            "error": None,
+            "done": False,
+        },
+    )
+
+
+@router.post("/platform/password")
+async def change_password(
+    http_request: HttpRequest,
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+    repeat_password: str = Form(...),
+    admin: PlatformAdmin = Depends(current_platform_admin),
+    session: AsyncSession = Depends(db_session),
+):
+    def render(error: str | None, done: bool = False):
+        return _templates().TemplateResponse(
+            http_request,
+            "change_password.html",
+            {
+                "title": "Смена пароля",
+                "who": admin.full_name or admin.email,
+                "action": "/platform/password",
+                "back": "/platform",
+                "error": error,
+                "done": done,
+            },
+            status_code=status.HTTP_400_BAD_REQUEST if error else status.HTTP_200_OK,
+        )
+
+    # Текущий пароль спрашиваем всегда: иначе любой, кто подсел за незапертый
+    # компьютер, сменит его и заберёт кабинет себе.
+    if not verify_password(current_password, admin.password_hash):
+        return render("Текущий пароль неверный.")
+    if len(new_password) < 8:
+        return render("Новый пароль короче 8 символов.")
+    if new_password != repeat_password:
+        return render("Новый пароль и повтор не совпадают.")
+    if new_password == current_password:
+        return render("Новый пароль совпадает со старым.")
+
+    admin.password_hash = hash_password(new_password)
+    await session.flush()
+    return render(None, done=True)
+
+
 # --- нотариусы --------------------------------------------------------------
 
 

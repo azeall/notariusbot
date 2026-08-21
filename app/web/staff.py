@@ -111,6 +111,63 @@ async def logout() -> Response:
     return response
 
 
+@router.get("/password", response_class=HTMLResponse)
+async def password_form(
+    http_request: HttpRequest, staff: Staff = Depends(current_staff)
+):
+    return _templates().TemplateResponse(
+        http_request,
+        "change_password.html",
+        {
+            "title": "Смена пароля",
+            "who": staff.full_name or staff.email,
+            "action": "/staff/password",
+            "back": "/staff",
+            "error": None,
+            "done": False,
+        },
+    )
+
+
+@router.post("/password")
+async def change_password(
+    http_request: HttpRequest,
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+    repeat_password: str = Form(...),
+    staff: Staff = Depends(current_staff),
+    session: AsyncSession = Depends(db_session),
+):
+    def render(error: str | None, done: bool = False):
+        return _templates().TemplateResponse(
+            http_request,
+            "change_password.html",
+            {
+                "title": "Смена пароля",
+                "who": staff.full_name or staff.email,
+                "action": "/staff/password",
+                "back": "/staff",
+                "error": error,
+                "done": done,
+            },
+            status_code=status.HTTP_400_BAD_REQUEST if error else status.HTTP_200_OK,
+        )
+
+    # Текущий пароль обязателен: сотрудник мог отойти от компьютера.
+    if not verify_password(current_password, staff.password_hash):
+        return render("Текущий пароль неверный.")
+    if len(new_password) < 8:
+        return render("Новый пароль короче 8 символов.")
+    if new_password != repeat_password:
+        return render("Новый пароль и повтор не совпадают.")
+    if new_password == current_password:
+        return render("Новый пароль совпадает со старым.")
+
+    staff.password_hash = hash_password(new_password)
+    await session.flush()
+    return render(None, done=True)
+
+
 @router.get("", response_class=HTMLResponse)
 async def queue(
     http_request: HttpRequest,
