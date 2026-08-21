@@ -194,22 +194,6 @@ section { padding: var(--gap) clamp(20px, 5vw, 64px); }
 
 /* --- мелкий шрифт и подвал --- */
 
-.notice {
-  margin-top: 24px;
-  padding: 16px 20px;
-  background: var(--wash);
-  border-left: 2px solid var(--accent);
-  border-radius: 0 8px 8px 0;
-  color: var(--muted);
-  font-size: 0.9375rem;
-  max-width: 40em;
-}
-.notice code {
-  font-family: ui-monospace, "Cascadia Code", monospace;
-  font-size: 0.875em;
-  color: var(--ink);
-}
-
 .fineprint {
   color: var(--muted);
   font-size: 0.8125rem;
@@ -233,3 +217,39 @@ footer a:hover { color: var(--ink); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* --- список фактов о данных и законе --- */
+
+.facts { list-style: none; margin: 40px 0 0; padding: 0; }
+
+.facts li {
+  border-top: 1px solid var(--line);
+  padding: 20px 0;
+  color: var(--muted);
+  max-width: 46em;
+}
+
+.facts li:last-child { border-bottom: 1px solid var(--line); }
+.facts b { color: var(--ink); font-weight: 600; display: block; margin-bottom: 4px; }
+
+/* --- подпись в подвале --- */
+
+footer .sign { display: flex; flex-direction: column; gap: 2px; }
+footer .sign b { color: var(--ink); font-weight: 600; }
+
+/* --- сообщение, когда сервис не настроен --- */
+
+.notice {
+  position: fixed;
+  left: 50%; bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 20;
+  max-width: min(520px, calc(100vw - 40px));
+  padding: 14px 18px;
+  background: var(--ink);
+  color: #fff;
+  border-radius: 10px;
+  font-size: 0.9375rem;
+  box-shadow: 0 12px 40px -12px rgba(0,0,0,.5);
+}
+.notice code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 0.875em; }
