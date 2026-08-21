@@ -24,6 +24,7 @@ from app.web.deps import (
     current_staff,
     db_session,
     issue_session_cookie,
+    optional_staff,
     public_base_url,
 )
 
@@ -105,8 +106,23 @@ async def login(
 
 
 @router.post("/logout")
-async def logout() -> Response:
-    response = RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
+async def logout(
+    staff: Staff | None = Depends(optional_staff),
+    session: AsyncSession = Depends(db_session),
+) -> Response:
+    """Выход возвращает на вход своего нотариуса, а не на корень сервиса.
+
+    Кто именно вышел, известно только до удаления куки, поэтому код нотариуса
+    выясняем заранее. Иначе сотрудник попадает на служебную страницу и не
+    понимает, куда ему теперь входить.
+    """
+    target = "/"
+    if staff is not None:
+        tenant = await session.get(Tenant, staff.tenant_id)
+        if tenant is not None:
+            target = f"/staff/{tenant.slug}/login"
+
+    response = RedirectResponse(target, status_code=status.HTTP_303_SEE_OTHER)
     response.delete_cookie(SESSION_COOKIE)
     return response
 

@@ -534,3 +534,32 @@ async def test_widget_page_renders(http, tenant, service):
 
 async def test_healthz(http):
     assert (await http.get("/healthz")).json() == {"status": "ok"}
+
+
+async def test_staff_logout_returns_to_own_notary(http, tenant, employee):
+    """Выход должен вернуть на вход своего нотариуса, а не на корень сервиса."""
+    await http.post(
+        f"/staff/{tenant.slug}/login",
+        data={"email": employee.email, "password": "secret123"},
+    )
+    response = await http.post("/staff/logout")
+    assert response.status_code == 303
+    assert response.headers["location"] == f"/staff/{tenant.slug}/login"
+
+    # Куку сняли — очередь снова закрыта.
+    assert (await http.get("/staff")).status_code == 401
+
+
+async def test_logout_without_session_does_not_break(http):
+    response = await http.post("/staff/logout")
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
+
+
+async def test_root_page_hides_internal_addresses(http):
+    """Корень открывают случайно — схему адресов там показывать незачем."""
+    page = await http.get("/")
+    assert page.status_code == 200
+    assert "/staff/" not in page.text
+    assert "/widget/" not in page.text
+    assert "platform" not in page.text

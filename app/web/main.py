@@ -57,18 +57,21 @@ def create_app() -> FastAPI:
 
     @app.get("/", include_in_schema=False)
     async def index() -> HTMLResponse:
+        # Корень сервиса открывают случайно: по ссылке из адресной строки или
+        # после выхода. Показывать здесь схему адресов не нужно — клиент
+        # приходит через виджет, сотрудник по своей ссылке.
         return HTMLResponse(
             "<!doctype html><meta charset='utf-8'>"
             "<title>Приём заявок нотариуса</title>"
-            "<body style='background:#06101f;color:#f0ece4;font:16px system-ui;"
+            "<body style='background:#fff;color:#0b0b0d;margin:0;"
+            "font:16px/1.6 system-ui,-apple-system,\"Segoe UI\",sans-serif;"
             "display:flex;min-height:100vh;align-items:center;justify-content:center'>"
-            "<div style='text-align:center'>"
-            "<p style='font-family:Georgia,serif;font-size:20px'>Приём заявок нотариуса</p>"
-            "<p style='color:#8a9ab5;font-size:14px'>"
-            "Виджет: <code>/widget/&lt;код нотариуса&gt;</code> · "
-            "Панель: <code>/staff/&lt;код нотариуса&gt;/login</code></p>"
-            "<p style='margin-top:22px'><a href='/platform' style='color:#b89a5a'>"
-            "Кабинет владельца сервиса</a></p>"
+            "<div style='text-align:center;padding:24px'>"
+            "<p style='font-size:20px;font-weight:600;letter-spacing:-.02em;margin:0'>"
+            "Приём заявок нотариуса</p>"
+            "<p style='color:#6b6f76;font-size:14px;margin:10px 0 0'>"
+            "Чтобы оставить заявку, воспользуйтесь формой на сайте нотариуса "
+            "или ссылкой, которую он вам дал.</p>"
             "</div></body>"
         )
 
