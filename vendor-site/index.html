@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Заявки нотариусу — клиент пишет, вы получаете готовое дело</title>
-<meta name="description" content="Сервис приёма заявок для нотариуса: клиент пишет своими словами, что ему нужно, получает список документов и записывается. Заявка приходит сотрудникам в Telegram и в кабинет.">
+<meta name="description" content="Сайт нотариуса и приём заявок: клиент пишет своими словами, что ему нужно, получает список документов и записывается. Заявка приходит сотрудникам в Telegram и в кабинет. Услуги, цены и расписание нотариус меняет сам.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -17,9 +17,9 @@
   <a class="mark" href="#">нотариус<span>·</span>бот</a>
   <nav>
     <a href="#demo">Как это выглядит</a>
-    <a href="#cabinet">Ваш кабинет</a>
+    <a href="#panel">Панель нотариуса</a>
+    <a href="#price">Сколько стоит</a>
     <a href="#start">Как начать</a>
-    <a href="#law">Данные и закон</a>
   </nav>
   <a class="btn small" data-service-link="/staff">Войти</a>
 </header>
@@ -27,12 +27,12 @@
 <!-- ───────────────────────── первый экран ───────────────────────── -->
 
 <section class="hero">
-  <p class="eyebrow">Приём заявок для нотариальной конторы</p>
+  <p class="eyebrow">Сайт нотариуса и приём заявок</p>
   <h1>Клиент пишет,<br>что ему нужно.</h1>
   <p class="lede">
     Сервис сам отвечает, какие документы собрать, называет срок и записывает
     на приём. Готовая заявка приходит вашим сотрудникам — в Telegram и в кабинет.
-    Ни звонка, ни объяснений по десятому разу.
+    Услуги, цены и расписание вы меняете сами, без звонка разработчику.
   </p>
   <div class="hero-cta">
     <a class="btn" href="#demo">Попробовать прямо здесь</a>
@@ -84,7 +84,7 @@
     <div class="col">
       <div class="col-cap"><b>Сотрудник</b> · Telegram</div>
       <div class="phone tg">
-        <div class="phone-bar dark"><span></span></div>
+        <div class="phone-bar"><span></span></div>
         <div class="tg-head">
           <div class="tg-ava">Н</div>
           <div>
@@ -104,7 +104,7 @@
     </div>
 
     <!-- кабинет -->
-    <div class="col wide">
+    <div class="col">
       <div class="col-cap"><b>Вы</b> · кабинет</div>
       <div class="browser">
         <div class="br-bar">
@@ -112,14 +112,12 @@
           <div class="br-url">кабинет · заявки</div>
         </div>
         <div class="br-body">
-          <div class="cab-tabs">
-            <span class="on">Новые <b id="cab-count">0</b></span>
-            <span>В работе</span>
-            <span>Готовые</span>
+          <div class="cab-tabs" id="cab-tabs">
+            <button type="button" class="on" data-state="new">Новые <b>0</b></button>
+            <button type="button" data-state="work">В работе <b>0</b></button>
+            <button type="button" data-state="done">Готовые <b>0</b></button>
           </div>
-          <div class="cab-list" id="cab">
-            <div class="cab-empty" id="cab-empty">Новых заявок нет</div>
-          </div>
+          <div class="cab-list scroll" id="cab"></div>
         </div>
       </div>
       <div class="col-foot muted-foot">
@@ -132,14 +130,51 @@
   <div class="stage-note">
     <p>
       Это точная копия рабочего диалога — те же вопросы, те же списки документов.
-      Услуги, документы и сроки в реальном сервисе вы правите сами, без нас.
+      Виджет подстраивается под цвета вашего сайта; здесь он показан в оформлении
+      этой страницы.
     </p>
   </div>
 </section>
 
+<!-- ───────────────────────── панель нотариуса ───────────────────────── -->
+
+<section class="band alt" id="panel">
+  <div class="section-head">
+    <h2>Всё это вы меняете сами</h2>
+    <p class="sub">
+      Ниже — ваш кабинет, тоже рабочий. Поменяйте цену или срок, добавьте
+      документ в список — и посмотрите на окно клиента выше: там сразу станет
+      по-новому. Разработчик для этого не нужен.
+    </p>
+  </div>
+
+  <div class="browser wide">
+    <div class="br-bar">
+      <i></i><i></i><i></i>
+      <div class="br-url">кабинет нотариуса</div>
+    </div>
+    <div class="panel-body">
+      <nav class="panel-nav" id="panel-nav">
+        <button type="button" class="on" data-tab="services">Услуги и цены</button>
+        <button type="button" data-tab="docs">Списки документов</button>
+        <button type="button" data-tab="schedule">Приём и выходные</button>
+        <button type="button" data-tab="staff">Сотрудники</button>
+        <button type="button" data-tab="audit">Журнал доступа</button>
+        <button type="button" data-tab="look">Вид виджета</button>
+      </nav>
+      <div class="panel-main scroll" id="panel-main"></div>
+    </div>
+  </div>
+
+  <p class="stage-note">
+    В настоящем кабинете то же самое, только заявки живые. Всё, что вы здесь
+    поменяли, попадёт в чат клиента — попробуйте и прокрутите страницу вверх.
+  </p>
+</section>
+
 <!-- ───────────────────────── что происходит дальше ───────────────────────── -->
 
-<section class="band alt">
+<section class="band">
   <div class="section-head">
     <h2>Что происходит с заявкой дальше</h2>
   </div>
@@ -152,7 +187,7 @@
     <div class="fl">
       <span class="n">2</span>
       <h3>Клиент присылает документы</h3>
-      <p>По ссылке из чата, не приходя в контору. Файлы хранятся в зашифрованном виде, ссылка живёт полчаса.</p>
+      <p>По ссылке из чата, не приходя в контору. Файлы хранятся зашифрованными, ссылка живёт полчаса.</p>
     </div>
     <div class="fl">
       <span class="n">3</span>
@@ -167,93 +202,119 @@
   </div>
 </section>
 
-<!-- ───────────────────────── кабинет ───────────────────────── -->
+<!-- ───────────────────────── цены ───────────────────────── -->
 
-<section class="band" id="cabinet">
+<section class="band alt" id="price">
   <div class="section-head">
-    <h2>Что вы меняете сами</h2>
+    <h2>Сколько стоит</h2>
     <p class="sub">
-      Без звонков разработчику и без ожидания. Изменили цену утром — виджет
-      называет новую с обеда.
+      Два разных дела и две разные цены. Сайт — работа один раз. Приём заявок —
+      сервис, который работает каждый день: сервер, хранение документов,
+      обновления, ответственность за сохранность данных.
     </p>
   </div>
 
-  <div class="cards">
-    <div class="card">
-      <h3>Услуги</h3>
-      <p>Добавить, убрать, переименовать. Написать срок и цену — клиент увидит их сразу в чате.</p>
+  <div class="plans">
+    <div class="plan">
+      <div class="plan-cap">Если сайт уже есть</div>
+      <h3>Только заявки</h3>
+      <div class="plan-price"><b data-price="widget-setup">—</b> <span>подключение</span></div>
+      <div class="plan-price sub2">+ <b data-price="monthly">—</b> <span>в месяц</span></div>
+      <ul>
+        <li>Виджет на ваш сайт</li>
+        <li>Кабинет и учётные записи сотрудникам</li>
+        <li>Telegram-уведомления</li>
+        <li>Приём документов и хранение</li>
+      </ul>
     </div>
-    <div class="card">
-      <h3>Списки документов</h3>
-      <p>Для каждой услуги свой. Отмечаете, что обязательно, а что «если есть», — и приписываете пояснение.</p>
+
+    <div class="plan best">
+      <div class="plan-cap">Чаще всего берут это</div>
+      <h3>Сайт и заявки</h3>
+      <div class="plan-price"><b data-price="site-setup">—</b> <span>сайт под ключ</span></div>
+      <div class="plan-price sub2">+ <b data-price="monthly">—</b> <span>в месяц за сервис</span></div>
+      <ul>
+        <li>Сайт: услуги, цены, подготовка к визиту, блог, карта</li>
+        <li>Разметка для поисковиков, отзывы с Яндекс.Карт</li>
+        <li>Виджет заявок уже встроен</li>
+        <li>Всё из левого столбца</li>
+      </ul>
     </div>
-    <div class="card">
-      <h3>Часы приёма и выходные</h3>
-      <p>Клиент выбирает время только из свободного. Два человека на один час не запишутся.</p>
-    </div>
-    <div class="card">
-      <h3>Сотрудники</h3>
-      <p>Заводите, отключаете, подключаете им Telegram. Уволился — доступ закрывается в один клик.</p>
-    </div>
-    <div class="card">
-      <h3>Вид виджета</h3>
-      <p>Цвет и шрифт подгоняются под ваш сайт. Светлый или тёмный — на ваш выбор.</p>
-    </div>
-    <div class="card">
-      <h3>Журнал доступа</h3>
-      <p>Кто и когда открывал документы клиентов. Выгружается в файл — на случай проверки.</p>
+
+    <div class="plan">
+      <div class="plan-cap">Без приёма заявок</div>
+      <h3>Только сайт</h3>
+      <div class="plan-price"><b data-price="site-only">—</b> <span>один раз</span></div>
+      <div class="plan-price sub2"><span>дальше платежей нет</span></div>
+      <ul>
+        <li>Тот же сайт, четыре оформления на выбор</li>
+        <li>Наполнение вашими услугами и ценами</li>
+        <li>Домен и почта — помогу подключить</li>
+        <li>Заявки можно добавить позже</li>
+      </ul>
     </div>
   </div>
 
-  <div class="gear-note">
-    <div class="gear-ico">⚙</div>
-    <div>
-      <h3>Вход спрятан прямо на вашем сайте</h3>
-      <p>
-        В самом низу страницы — маленькая шестерёнка. Клиенты её не замечают,
-        а вы и сотрудники заходите с неё в один клик, без отдельного адреса
-        и без закладок.
-      </p>
-    </div>
+  <div class="price-note">
+    <h3>Почему за сервис ежемесячно, а за сайт — один раз</h3>
+    <p>
+      Сайт сделан и работает: он лежит на своём месте и денег не просит.
+      Приём заявок — другое: через него каждый день идут паспорта и
+      свидетельства ваших клиентов. За ними стоит сервер в России, шифрованное
+      хранилище, ежедневные копии, удаление по истечении срока и обновления
+      под требования закона. Это работа, которая не заканчивается, — поэтому
+      и оплата такая же.
+    </p>
+    <p class="fineprint">
+      Домен и хостинг сайта оплачиваются напрямую вами и в эти суммы не входят —
+      обычно это 1 000–2 000 ₽ в год за домен. Сервер приёма заявок при желании
+      переоформляется на вас.
+    </p>
   </div>
 </section>
 
 <!-- ───────────────────────── как начать ───────────────────────── -->
 
-<section class="band alt" id="start">
+<section class="band" id="start">
   <div class="section-head">
     <h2>Как начать</h2>
     <p class="sub">Три шага, и ни одного пароля, который надо придумывать заранее.</p>
   </div>
 
-  <ol class="steps">
-    <li>
-      <h3>Я завожу вашу контору</h3>
+  <div class="steps">
+    <div class="step">
+      <span class="step-n">1</span>
+      <h3>Вы рассказываете о конторе</h3>
       <p>
-        Название, адрес, часы приёма, ваши услуги с документами. От вас — только
-        сведения; ничего заполнять и настраивать не нужно.
+        Название, адрес, часы приёма, ваши услуги. Заполнять ничего не нужно —
+        достаточно прислать сведения, остальное сделаю я.
       </p>
-    </li>
-    <li>
-      <h3>Вы получаете ссылку-приглашение</h3>
+      <span class="step-when">30 минут разговора</span>
+    </div>
+    <div class="step">
+      <span class="step-n">2</span>
+      <h3>Я собираю и присылаю ссылку</h3>
       <p>
-        Одноразовую и на две недели. По ней вы задаёте свою почту и свой пароль —
-        я его не вижу и не храню.
+        Одноразовую и действующую две недели. По ней вы задаёте свою почту
+        и свой пароль — я его не вижу и не храню.
       </p>
-    </li>
-    <li>
-      <h3>Заводите сотрудников</h3>
+      <span class="step-when">2–5 дней с сайтом, 1 день без</span>
+    </div>
+    <div class="step">
+      <span class="step-n">3</span>
+      <h3>Заводите сотрудников и работаете</h3>
       <p>
         Каждому — своя учётная запись и свой Telegram. Виджет к этому моменту
         уже стоит на сайте и принимает заявки.
       </p>
-    </li>
-  </ol>
+      <span class="step-when">10 минут</span>
+    </div>
+  </div>
 </section>
 
 <!-- ───────────────────────── закон ───────────────────────── -->
 
-<section class="band" id="law">
+<section class="band alt" id="law">
   <div class="section-head">
     <h2>Данные и закон</h2>
     <p class="sub">
@@ -262,7 +323,7 @@
     </p>
   </div>
 
-  <div class="cards law">
+  <div class="cards">
     <div class="card">
       <h3>Согласие до, а не после</h3>
       <p>Клиент подтверждает обработку данных прежде, чем заявка будет создана. Отказался — заявки нет.</p>
@@ -301,7 +362,8 @@
   <h2>Посмотреть на своей конторе</h2>
   <p class="lede">
     Заведу вашу контору с вашими услугами и покажу, как это работает
-    на ваших делах, а не на примере из демонстрации.
+    на ваших делах, а не на примере из демонстрации. Это бесплатно
+    и ни к чему не обязывает.
   </p>
   <div class="hero-cta">
     <a class="btn" href="mailto:negay2020@gmail.com">Написать мне</a>
@@ -311,17 +373,26 @@
 
 <footer class="foot">
   <span>нотариус·бот</span>
-  <span class="muted">Приём заявок для нотариальных контор</span>
+  <span class="muted">Сайт нотариуса и приём заявок</span>
 </footer>
 
+<script src="prices.js"></script>
 <script src="demo.js"></script>
 <script>
-  // Адрес кабинета живёт отдельно от сайта, поэтому ссылки абсолютные.
   (function () {
+    // Адрес кабинета живёт отдельно от сайта, поэтому ссылки абсолютные.
     var base = window.SERVICE_URL || "";
     var links = document.querySelectorAll("[data-service-link]");
     for (var i = 0; i < links.length; i++) {
       links[i].href = base + links[i].getAttribute("data-service-link");
+    }
+
+    // Цены — из prices.js, чтобы правились в одном месте.
+    var prices = window.PRICES || {};
+    var slots = document.querySelectorAll("[data-price]");
+    for (var j = 0; j < slots.length; j++) {
+      var key = slots[j].getAttribute("data-price");
+      if (prices[key]) slots[j].textContent = prices[key];
     }
   })();
 </script>
