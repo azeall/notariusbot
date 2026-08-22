@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request as HttpRequest, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -25,6 +26,7 @@ from app.models import (
 from app.web.deps import (
     SESSION_COOKIE,
     client_ip,
+    current_owner,
     current_staff,
     db_session,
     issue_session_cookie,
@@ -537,6 +539,60 @@ async def remove_participant(
         )
     except participation.ParticipationError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return RedirectResponse(
+        f"/staff/requests/{request_id}", status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+@router.post("/requests/{request_id}/documents/{attachment_id}/delete")
+async def delete_document(
+    request_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    http_request: HttpRequest,
+    reason: str = Form(""),
+    staff: Staff = Depends(current_owner),
+    session: AsyncSession = Depends(db_session),
+):
+    """Удалить документ до истечения срока хранения.
+
+    Право только у нотариуса: удаление необратимо, а отвечает за данные
+    перед клиентом он. Нужно это прежде всего для отзыва согласия —
+    по 152-ФЗ клиент вправе потребовать удаления, и до сих пор исполнить
+    такое требование было нечем.
+
+    Файл стирается, запись о нём и журнал доступа остаются: оператор
+    должен уметь показать, что удалено и по чьей воле.
+    """
+    attachment = await session.scalar(
+        select(Attachment).where(
+            Attachment.id == attachment_id,
+            Attachment.request_id == request_id,
+            Attachment.tenant_id == staff.tenant_id,
+        )
+    )
+    if attachment is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Документ не найден")
+    if not attachment.is_available:
+        raise HTTPException(status.HTTP_410_GONE, "Документ уже удалён")
+
+    DocumentStorage().delete(attachment.storage_path)
+    attachment.purged_at = datetime.now(UTC)
+
+    note = reason.strip() or "без указания причины"
+    session.add(
+        AuditLog(
+            tenant_id=staff.tenant_id,
+            actor_staff_id=staff.id,
+            actor_label=staff.full_name,
+            action="document_deleted",
+            object_type="attachment",
+            object_id=str(attachment.id),
+            source_ip=client_ip(http_request),
+            details=f"{attachment.original_filename} — {note}",
+        )
+    )
+    await session.flush()
+
     return RedirectResponse(
         f"/staff/requests/{request_id}", status_code=status.HTTP_303_SEE_OTHER
     )

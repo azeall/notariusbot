@@ -57,8 +57,19 @@
     </div>
     {% if doc.is_available %}
       <a class="btn ghost" href="/staff/requests/{{ req.id }}/documents/{{ doc.id }}" target="_blank" rel="noopener">Открыть</a>
+      {% if rights.can_manage_participants and staff.can_manage_catalog %}
+        {# Удалять может только нотариус: действие необратимо, и перед
+           клиентом за данные отвечает он. Нужно для отзыва согласия. #}
+        <form method="post"
+              action="/staff/requests/{{ req.id }}/documents/{{ doc.id }}/delete"
+              onsubmit="return confirm('Удалить {{ doc.original_filename }} без возможности восстановить?')"
+              style="display:inline">
+          <input type="hidden" name="reason" value="удалён нотариусом до срока">
+          <button class="ghost danger" type="submit">Удалить</button>
+        </form>
+      {% endif %}
     {% else %}
-      <span class="badge closed">удалён по сроку хранения</span>
+      <span class="badge closed">удалён</span>
     {% endif %}
   </div>
 {% endfor %}
