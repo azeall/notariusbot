@@ -57,9 +57,12 @@
     </div>
     {% if doc.is_available %}
       <a class="btn ghost" href="/staff/requests/{{ req.id }}/documents/{{ doc.id }}" target="_blank" rel="noopener">Открыть</a>
-      {% if rights.can_manage_participants and staff.can_manage_catalog %}
-        {# Удалять может только нотариус: действие необратимо, и перед
-           клиентом за данные отвечает он. Нужно для отзыва согласия. #}
+      {% if staff.can_manage_catalog %}
+        {# Ровно то же право, что требует маршрут (current_owner). Условие
+           здесь и проверка там обязаны совпадать: разойдутся — кнопка либо
+           появится там, где нажатие даст отказ, либо пропадёт там, где всё
+           разрешено. Удалять может только нотариус: действие необратимо,
+           и перед клиентом за данные отвечает он. #}
         <form method="post"
               action="/staff/requests/{{ req.id }}/documents/{{ doc.id }}/delete"
               onsubmit="return confirm('Удалить {{ doc.original_filename }} без возможности восстановить?')"
