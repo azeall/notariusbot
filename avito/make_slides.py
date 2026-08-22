@@ -164,7 +164,7 @@ def price_row(y, title, big, small):
 slides["05-tseny"] = (
     head(PAPER)
     + f'<text x="80" y="150" font-size="64" font-weight="700" fill="{INK}" letter-spacing="-2">Сколько стоит</text>'
-    + price_row(330, "Сайт вместе с заявками", "60 000 ₽", "+ 3 000 ₽ в месяц")
+    + price_row(330, "Сайт вместе с заявками", "70 000 ₽", "+ 3 000 ₽ в месяц")
     + price_row(500, "Заявки на готовый сайт", "20 000 ₽", "+ 3 000 ₽ в месяц")
     + price_row(670, "Только сайт", "55 000 ₽", "без ежемесячных платежей")
     + f'<line x1="80" y1="596" x2="{W - 80}" y2="596" stroke="#e6e7ea" stroke-width="2"/>'
