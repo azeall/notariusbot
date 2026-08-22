@@ -23,6 +23,7 @@ from app.models import (
     Staff,
     Tenant,
 )
+from app.web import sessions
 from app.web.deps import (
     SESSION_COOKIE,
     client_ip,
@@ -65,6 +66,7 @@ async def login(
     http_request: HttpRequest,
     email: str = Form(...),
     password: str = Form(...),
+    remember: str = Form(""),
     session: AsyncSession = Depends(db_session),
 ):
     tenant = await session.scalar(select(Tenant).where(Tenant.slug == slug))
@@ -101,13 +103,8 @@ async def login(
         )
     )
     response = RedirectResponse("/staff", status_code=status.HTTP_303_SEE_OTHER)
-    response.set_cookie(
-        SESSION_COOKIE,
-        issue_session_cookie(staff),
-        httponly=True,
-        samesite="lax",
-        max_age=60 * 60 * 12,
-    )
+    value, ttl = issue_session_cookie(staff, remember=bool(remember))
+    sessions.attach(response, SESSION_COOKIE, value, ttl)
     return response
 
 

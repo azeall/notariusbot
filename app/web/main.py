@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import get_settings
 from app.db import dispose_engine
+from app.web import sessions
 
 WEB_DIR = Path(__file__).resolve().parent
 TEMPLATES = Jinja2Templates(directory=str(WEB_DIR / "templates"))
@@ -39,6 +40,22 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def renew_session(request: Request, call_next):
+        """Продлить сессию, пока кабинетом пользуются.
+
+        Иначе даже длинный срок однажды кончается — посреди рабочего дня
+        и без предупреждения. Проверка «пора ли» лежит в самой сессии,
+        поэтому кука переписывается не чаще раза в сутки.
+        """
+        response = await call_next(request)
+        renewal = getattr(request.state, "renew_session", None)
+        if renewal is not None:
+            cookie_name, key, subject_id = renewal
+            value, ttl = sessions.issue(subject_id, remember=True, key=key)
+            sessions.attach(response, cookie_name, value, ttl)
+        return response
 
     app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
 

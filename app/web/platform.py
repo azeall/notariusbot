@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request as HttpRequest, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from itsdangerous import BadSignature, URLSafeSerializer
+from itsdangerous import URLSafeSerializer
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +25,9 @@ from app.domain.slugs import SLUG_RE, suggest_slug
 from app.domain.starter import create_default_schedule, create_starter_catalog
 from app.domain.theme import DEFAULT_ACCENT, FONTS, MODES, normalize_accent
 from app.models import PlatformAdmin, Request, Staff, StaffRole, Tenant
+import time
+
+from app.web import sessions
 from app.web.deps import (
     SESSION_COOKIE,
     db_session,
@@ -56,15 +59,18 @@ async def current_platform_admin(
     raw = http_request.cookies.get(PLATFORM_COOKIE)
     if not raw:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Требуется вход")
-    try:
-        payload = _serializer().loads(raw)
-        admin_id = uuid.UUID(payload["admin_id"])
-    except (BadSignature, KeyError, ValueError, TypeError) as exc:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Требуется вход") from exc
 
-    admin = await session.get(PlatformAdmin, admin_id)
+    found = sessions.read(raw, key="admin_id")
+    if found is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Требуется вход")
+
+    admin = await session.get(PlatformAdmin, found.subject_id)
     if admin is None or not admin.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Требуется вход")
+
+    # Пометка для продлевающей прослойки: сессия жива и ею пользуются.
+    if found.needs_renewal(int(time.time())):
+        http_request.state.renew_session = (PLATFORM_COOKIE, "admin_id", admin.id)
     return admin
 
 
@@ -105,13 +111,11 @@ async def login(
         )
 
     response = RedirectResponse("/platform", status_code=status.HTTP_303_SEE_OTHER)
-    response.set_cookie(
-        PLATFORM_COOKIE,
-        _serializer().dumps({"admin_id": str(admin.id)}),
-        httponly=True,
-        samesite="lax",
-        max_age=60 * 60 * 12,
-    )
+    # Владелец сидит в кабинете подолгу и заходит с одного компьютера,
+    # поэтому «запомнить» здесь по умолчанию: выпадать из своего кабинета
+    # каждые полсуток — ровно то, на что и жаловались.
+    value, ttl = sessions.issue(admin.id, remember=True, key="admin_id")
+    sessions.attach(response, PLATFORM_COOKIE, value, ttl)
     return response
 
 
@@ -474,11 +478,9 @@ async def accept_invite(
     await session.flush()
 
     response = RedirectResponse("/admin?welcome=1", status_code=status.HTTP_303_SEE_OTHER)
-    response.set_cookie(
-        SESSION_COOKIE,
-        issue_session_cookie(owner),
-        httponly=True,
-        samesite="lax",
-        max_age=60 * 60 * 12,
-    )
+    # Нотариус только что задал себе пароль на своём компьютере — запоминаем:
+    # заставлять его входить заново через полсуток после знакомства с сервисом
+    # значит начать отношения с раздражения.
+    value, ttl = issue_session_cookie(owner, remember=True)
+    sessions.attach(response, SESSION_COOKIE, value, ttl)
     return response

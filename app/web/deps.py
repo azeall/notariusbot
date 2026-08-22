@@ -1,35 +1,27 @@
+import time
 import uuid
 from collections.abc import AsyncIterator
 
 from fastapi import Depends, HTTPException, Request as HttpRequest, status
-from itsdangerous import BadSignature, URLSafeSerializer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db import get_session
+from app.web import sessions
 from app.models import Staff, Tenant
 
 SESSION_COOKIE = "notarybot_session"
 
 
-def _serializer() -> URLSafeSerializer:
-    return URLSafeSerializer(get_settings().session_secret, salt="staff-session")
-
-
-def issue_session_cookie(staff: Staff) -> str:
-    return _serializer().dumps({"staff_id": str(staff.id)})
+def issue_session_cookie(staff: Staff, *, remember: bool = False) -> tuple[str, int]:
+    """Значение куки и срок её жизни. Разбор и продление — в app.web.sessions."""
+    return sessions.issue(staff.id, remember=remember)
 
 
 def read_session_cookie(raw: str) -> uuid.UUID | None:
-    try:
-        payload = _serializer().loads(raw)
-    except BadSignature:
-        return None
-    try:
-        return uuid.UUID(payload["staff_id"])
-    except (KeyError, ValueError, TypeError):
-        return None
+    found = sessions.read(raw)
+    return found.subject_id if found else None
 
 
 async def db_session() -> AsyncIterator[AsyncSession]:
@@ -52,12 +44,17 @@ async def optional_staff(
     raw = request.cookies.get(SESSION_COOKIE)
     if not raw:
         return None
-    staff_id = read_session_cookie(raw)
-    if staff_id is None:
+    found = sessions.read(raw)
+    if found is None:
         return None
-    staff = await session.get(Staff, staff_id)
+    staff = await session.get(Staff, found.subject_id)
     if staff is None or not staff.is_active:
         return None
+
+    # Пометка для продлевающей прослойки: короткие сессии не трогаем —
+    # человек выбрал «на один день», и решать за него мы не станем.
+    if found.needs_renewal(int(time.time())):
+        request.state.renew_session = (SESSION_COOKIE, "staff_id", staff.id)
     return staff
 
 

@@ -61,6 +61,14 @@ class Settings(BaseSettings):
 
     session_secret: str = "dev-only-session-secret"
 
+    # Отдавать куки только по https.
+    #
+    # None — решает адрес сервиса: боевой работает по https, разработка
+    # и тесты по http. Так никому не нужно про этот флаг помнить, а на
+    # боевом он включится сам. За кукой стоит доступ к паспортам клиентов,
+    # и по открытому каналу ей ходить нельзя.
+    cookies_secure: bool | None = None
+
     # Вход владельца сервиса. Пароль намеренно без значения по умолчанию:
     # репозиторий публичный, и зашитый пароль означал бы, что ключи от кабинета
     # знает любой читатель. Пустой — сид придумает случайный и напечатает один раз.
@@ -82,6 +90,13 @@ class Settings(BaseSettings):
     # Для одного нотариуса на бота этого достаточно; для многих клиент
     # приходит по ссылке вида t.me/<bot>?start=<slug>.
     default_tenant_slug: str = "demo"
+
+
+    @property
+    def use_secure_cookies(self) -> bool:
+        if self.cookies_secure is not None:
+            return self.cookies_secure
+        return self.public_base_url.startswith("https://")
 
 
 @lru_cache
