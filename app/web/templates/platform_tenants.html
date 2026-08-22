@@ -28,6 +28,30 @@
   </div>
 {% endif %}
 
+{% if tenants %}
+  <div class="card" style="margin-bottom:18px">
+    <div class="summary">
+      <div><b>{{ summary.tenants }}</b><span>заведено контор</span></div>
+      <div><b>{{ summary.activated }}</b><span>приняли приглашение</span></div>
+      {% if summary.waiting %}
+        <div><b>{{ summary.waiting }}</b><span>ещё не вошли</span></div>
+      {% endif %}
+      <div><b>{{ summary.requests_week }}</b><span>заявок за неделю</span></div>
+      <div><b>{{ summary.requests_total }}</b><span>заявок всего</span></div>
+      {% if summary.silent %}
+        <div class="warn"><b>{{ summary.silent }}</b><span>неделю без заявок</span></div>
+      {% endif %}
+    </div>
+    {% if summary.silent %}
+      <p class="m" style="margin:14px 0 0">
+        Контора без заявок неделю — либо не пользуется, либо у неё что-то
+        сломалось. И то и другое заканчивается отказом от сервиса, поэтому
+        узнать лучше сейчас, а не из письма.
+      </p>
+    {% endif %}
+  </div>
+{% endif %}
+
 <div class="actions" style="margin-bottom:18px">
   <a class="btn" href="/platform/new">Подключить нотариуса</a>
 </div>
@@ -52,6 +76,18 @@
         код: {{ tenant.slug }}
         {%- if tenant.city %} · {{ tenant.city }}{% endif %}
         · виджет: {{ base }}/widget/{{ tenant.slug }}
+      </div>
+      {% set st = stats.get(tenant.id) %}
+      <div class="m" style="margin-top:6px">
+        {% if st and st.total %}
+          заявок: <b>{{ st.total }}</b>, за неделю: <b>{{ st.week }}</b> ·
+          последняя {{ st.last.strftime('%d.%m.%Y') }}
+          {% if not st.week %}
+            <span class="badge closed" style="margin-left:6px">неделю тихо</span>
+          {% endif %}
+        {% elif tenant.is_activated %}
+          <span class="badge closed">заявок ещё не было</span>
+        {% endif %}
       </div>
     </div>
     <a class="btn ghost" href="/platform/tenants/{{ tenant.id }}">Изменить</a>

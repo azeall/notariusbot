@@ -199,6 +199,41 @@ async def tenants_index(
     session: AsyncSession = Depends(db_session),
 ):
     tenants = list(await session.scalars(select(Tenant).order_by(Tenant.created_at.desc())))
+
+    # Заявки по конторам: сколько всего и когда была последняя.
+    #
+    # Последняя заявка — главный сигнал в этом кабинете. Контора, у которой
+    # неделю тишина, либо не пользуется сервисом, либо у неё что-то сломалось,
+    # и в обоих случаях она скоро перестанет платить. Узнать об этом лучше
+    # раньше, чем из письма «мы отказываемся».
+    week_ago = datetime.now(UTC) - timedelta(days=7)
+    rows = await session.execute(
+        select(
+            Request.tenant_id,
+            func.count(Request.id),
+            func.max(Request.created_at),
+            func.count(Request.id).filter(Request.created_at >= week_ago),
+        ).group_by(Request.tenant_id)
+    )
+    stats = {
+        tenant_id: {"total": total, "last": last, "week": week}
+        for tenant_id, total, last, week in rows
+    }
+
+    activated = sum(1 for t in tenants if t.is_activated)
+    summary = {
+        "tenants": len(tenants),
+        "activated": activated,
+        "waiting": len(tenants) - activated,
+        "requests_week": sum(s["week"] for s in stats.values()),
+        "requests_total": sum(s["total"] for s in stats.values()),
+        "silent": sum(
+            1
+            for t in tenants
+            if t.is_activated and stats.get(t.id, {}).get("week", 0) == 0
+        ),
+    }
+
     return _templates().TemplateResponse(
         http_request,
         "platform_tenants.html",
@@ -207,6 +242,8 @@ async def tenants_index(
             "title": "Нотариусы",
             "admin": admin,
             "tenants": tenants,
+            "stats": stats,
+            "summary": summary,
             "http_request": http_request,
             "base": public_base_url(http_request),
         },

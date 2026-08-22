@@ -202,3 +202,16 @@ ul.checklist li .opt { color: var(--muted); font-size: 0.8125rem; margin-left: 6
 }
 
 .login { max-width: 380px; margin: 10vh auto; }
+
+/* Сводка в кабинете владельца. Цифры крупные: страницу открывают, чтобы
+   одним взглядом понять, как идут дела, а не читать. */
+.summary {
+  display: flex; flex-wrap: wrap; gap: 26px 40px;
+}
+.summary > div { display: flex; flex-direction: column; gap: 2px; }
+.summary b {
+  font-size: 30px; font-weight: 650; line-height: 1;
+  letter-spacing: -0.02em;
+}
+.summary span { color: var(--slate); font-size: 12.5px; }
+.summary .warn b { color: #b45309; }
