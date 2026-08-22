@@ -21,7 +21,7 @@
     <a href="#price">Сколько стоит</a>
     <a href="#start">Как начать</a>
   </nav>
-  <a class="btn small" data-service-link="/staff">Войти</a>
+  <a class="btn small" href="#price">Цены</a>
 </header>
 
 <!-- ───────────────────────── первый экран ───────────────────────── -->
@@ -50,6 +50,11 @@
       секунду происходит у вас. Нажимайте в левом окне: это рабочий диалог,
       а не картинка.
     </p>
+  </div>
+
+  <div class="picker" id="picker">
+    <span class="picker-cap">Чем занимаетесь:</span>
+    <div class="picker-row" id="picker-row"></div>
   </div>
 
   <div class="stage">
@@ -367,13 +372,14 @@
   </p>
   <div class="hero-cta">
     <a class="btn" href="mailto:negay2020@gmail.com">Написать мне</a>
-    <a class="btn ghost" data-service-link="/staff">Войти в кабинет</a>
+    <a class="btn ghost" data-service-link="/platform/login">Войти в кабинет</a>
   </div>
 </section>
 
 <footer class="foot">
   <span>нотариус·бот</span>
-  <span class="muted">Сайт нотариуса и приём заявок</span>
+  <span class="muted">Сайт и приём заявок для тех, кто работает с документами</span>
+  <a class="foot-in" data-service-link="/platform/login">Вход для владельца сервиса</a>
 </footer>
 
 <script src="prices.js"></script>

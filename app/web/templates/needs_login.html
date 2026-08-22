@@ -1,0 +1,16 @@
+{% extends "base_panel.html" %}
+{% block content %}
+<h1>{{ heading }}</h1>
+<p class="lead">{{ explain }}</p>
+
+<div class="card">
+  <div class="actions">
+    <a class="btn" href="/platform/login">Вход владельца сервиса</a>
+  </div>
+  <p class="lead" style="margin-top:18px">
+    Сотрудники нотариальной конторы заходят по своей ссылке вида
+    <code>/staff/&lt;контора&gt;/login</code> — её выдаёт нотариус.
+    Если ссылка потерялась, спросите её у него: у каждой конторы она своя.
+  </p>
+</div>
+{% endblock %}

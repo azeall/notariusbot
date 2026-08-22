@@ -1,9 +1,9 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -50,6 +50,35 @@ def create_app() -> FastAPI:
     app.include_router(platform.router)
     app.include_router(staff.router)
     app.include_router(admin.router)
+
+    @app.exception_handler(HTTPException)
+    async def show_login_page(request: Request, exc: HTTPException):
+        """Человеку в браузере — страница, машине — json.
+
+        Раньше на /staff без входа браузер получал строку {"detail":"Требуется
+        вход"} и человек оставался наедине с ней: ни объяснения, ни ссылки.
+        Виджет и бот ходят сюда же, поэтому ответ выбирается по тому, что
+        клиент готов принять, а не по адресу.
+        """
+        wants_html = "text/html" in request.headers.get("accept", "")
+        if wants_html and exc.status_code in (401, 403) and not request.url.path.startswith("/api/"):
+            return TEMPLATES.TemplateResponse(
+                request,
+                "needs_login.html",
+                {
+                    "title": "Нужно войти",
+                    "heading": "Нужно войти" if exc.status_code == 401 else "Недостаточно прав",
+                    "explain": (
+                        "Эта страница доступна после входа."
+                        if exc.status_code == 401
+                        else "Вы вошли, но у этой учётной записи нет доступа к странице."
+                    ),
+                    "stylesheet": "/static/platform.css",
+                },
+                status_code=exc.status_code,
+            )
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code,
+                            headers=getattr(exc, "headers", None))
 
     @app.get("/healthz", include_in_schema=False)
     async def healthz() -> dict[str, str]:

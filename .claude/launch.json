@@ -6,6 +6,13 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "4173", "--directory", "vendor-site"],
       "port": 4173
+    },
+    {
+      "name": "seal-preview",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "4180", "--directory",
+        "C:/Users/TRITON 700/AppData/Local/Temp/claude/C--claude/e4672b3e-397e-43a7-9a25-12aaf5e228c6/scratchpad/seal-preview"],
+      "port": 4180
     }
   ]
 }
