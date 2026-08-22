@@ -1,0 +1,65 @@
+{% extends "base_panel.html" %}
+{% block content %}
+<div class="topbar" style="margin:-26px -28px 26px">
+  <div class="brand">Сервис заявок</div>
+  <nav>
+    <a href="/platform">Нотариусы</a>
+    <a href="/platform/ideas">Идеи</a>
+  </nav>
+  <a href="/platform/password" class="who" style="text-decoration:none">{{ admin.full_name or admin.email }}</a>
+  <form method="post" action="/platform/logout" style="margin:0">
+    <button class="ghost" type="submit">Выйти</button>
+  </form>
+</div>
+
+<h1>Идеи для расширения</h1>
+<p class="lead">
+  Разобранные, а не перечисленные: у каждой написано, зачем она, сколько
+  работы и что против. Порядок — по тому, что я делал бы первым, а не
+  по привлекательности.
+</p>
+
+<div class="callout">
+  Главное, что определяет весь этот список: <b>платящих клиентов пока ноль</b>.
+  Пока их нет, почти любая новая возможность — это работа, о нужности которой
+  никто не спрашивал. Поэтому наверху то, без чего нельзя приходить к первому
+  нотариусу, а не то, что интереснее делать.
+</div>
+
+{% for group in groups %}
+  <h2 style="margin:34px 0 6px">{{ group.title }}</h2>
+  <p class="lead" style="margin-bottom:16px">{{ group.note }}</p>
+
+  {% for idea in group.items %}
+    <div class="card" style="margin-bottom:14px">
+      <div class="card row" style="align-items:flex-start;gap:14px">
+        <div class="grow">
+          <div class="t">{{ idea.title }}</div>
+          <div class="m" style="margin-top:6px">{{ idea.what }}</div>
+        </div>
+        <span class="badge {{ idea.badge }}">{{ idea.effort }}</span>
+      </div>
+
+      <p style="margin:14px 0 0"><b>Зачем.</b> {{ idea.why }}</p>
+      {% if idea.against %}
+        <p style="margin:10px 0 0;color:var(--slate)"><b>Против.</b> {{ idea.against }}</p>
+      {% endif %}
+      <p style="margin:10px 0 0"><b>Вывод.</b> {{ idea.verdict }}</p>
+    </div>
+  {% endfor %}
+{% endfor %}
+
+<h2 style="margin:38px 0 6px">Как я это ранжировал</h2>
+<div class="card">
+  <p style="margin:0">
+    Не по размеру пользы, а по вопросу «что сломается у первого клиента,
+    если этого не будет». Восстановление пароля выглядит мелочью рядом
+    с аналитикой, но забытый пароль случится на первой же неделе, а нехватка
+    сводок — никогда не случится громко.
+  </p>
+  <p style="margin:12px 0 0;color:var(--slate)">
+    Список живой: он лежит в шаблоне <code>platform_ideas.html</code>,
+    правится там же, где всё остальное.
+  </p>
+</div>
+{% endblock %}

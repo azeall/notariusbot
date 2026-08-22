@@ -27,7 +27,7 @@ from app.domain.theme import DEFAULT_ACCENT, FONTS, MODES, normalize_accent
 from app.models import PlatformAdmin, Request, Staff, StaffRole, Tenant
 import time
 
-from app.web import sessions
+from app.web import ideas, sessions
 from app.web.deps import (
     SESSION_COOKIE,
     db_session,
@@ -209,6 +209,29 @@ async def tenants_index(
             "tenants": tenants,
             "http_request": http_request,
             "base": public_base_url(http_request),
+        },
+    )
+
+
+@router.get("/platform/ideas", response_class=HTMLResponse)
+async def ideas_page(
+    http_request: HttpRequest,
+    admin: PlatformAdmin = Depends(current_platform_admin),
+):
+    """Разобранные идеи для расширения.
+
+    Живут кодом в app/web/ideas.py, а не в базе: список правится вместе
+    с сервисом и попадает в его историю. Отдельная таблица под него дала бы
+    ещё один экран для ведения списка, которым никто не занимается.
+    """
+    return _templates().TemplateResponse(
+        http_request,
+        "platform_ideas.html",
+        {
+            "stylesheet": "/static/platform.css",
+            "title": "Идеи для расширения",
+            "admin": admin,
+            "groups": ideas.GROUPS,
         },
     )
 
