@@ -43,6 +43,14 @@ BACKUP_MAX_AGE_HOURS = 48
 
 BACKUP_DIR = Path("/var/backups/notarybot")
 
+# Метка о последней удачной копии.
+#
+# Сам каталог копий закрыт для всех, кроме root, и правильно: в дампе лежит
+# вся база целиком. Открывать его сервису ради проверки времени — менять
+# защиту на удобство. Поэтому копирование оставляет пустой файл-метку,
+# по которому видно только время, и больше ничего.
+BACKUP_MARK = Path("/var/lib/notarybot/last-backup")
+
 
 @dataclass(frozen=True)
 class Check:
@@ -89,12 +97,23 @@ def check_backup() -> Check:
     Копия, которой нет, обнаруживается ровно в тот момент, когда она нужна, —
     то есть в худший из возможных.
     """
-    if not BACKUP_DIR.exists():
-        return Check("Копии", False, "каталог не найден")
-    dumps = sorted(BACKUP_DIR.glob("db_*.dump"), key=lambda p: p.stat().st_mtime)
-    if not dumps:
-        return Check("Копии", False, "ни одной копии")
-    newest = datetime.fromtimestamp(dumps[-1].stat().st_mtime, UTC)
+    newest: datetime | None = None
+
+    if BACKUP_MARK.exists():
+        newest = datetime.fromtimestamp(BACKUP_MARK.stat().st_mtime, UTC)
+    else:
+        # Запасной путь — прочитать сам каталог. Сработает, только если
+        # проверка запущена от root; при обычном запуске молча не сработает,
+        # и это не ошибка.
+        try:
+            dumps = sorted(BACKUP_DIR.glob("db_*.dump"), key=lambda p: p.stat().st_mtime)
+            if dumps:
+                newest = datetime.fromtimestamp(dumps[-1].stat().st_mtime, UTC)
+        except OSError:
+            newest = None
+
+    if newest is None:
+        return Check("Копии", False, "нет отметки о последней копии")
     hours = (datetime.now(UTC) - newest).total_seconds() / 3600
     if hours > BACKUP_MAX_AGE_HOURS:
         return Check("Копии", False, f"последней {hours:.0f} ч назад")
