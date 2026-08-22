@@ -177,7 +177,7 @@ slides["05-tseny"] = (
 # Схематичные окошки в палитрах вариантов: настоящие снимки нотариус
 # увидит по ссылке, здесь важно показать, что выбор есть.
 def mini(x, y, bg, bar, accent, label, label_color):
-    w, h = 480, 300
+    w, h = 480, 268
     s = f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="16" fill="{bg}" stroke="#dfe1e5" stroke-width="2"/>'
     s += f'<rect x="{x}" y="{y}" width="{w}" height="52" rx="16" fill="{bar}"/>'
     s += f'<rect x="{x}" y="{y + 36}" width="{w}" height="16" fill="{bar}"/>'
@@ -193,10 +193,12 @@ def mini(x, y, bg, bar, accent, label, label_color):
 slides["06-chetyre-oformleniya"] = (
     head(PAPER)
     + f'<text x="80" y="130" font-size="60" font-weight="700" fill="{INK}" letter-spacing="-2">4 оформления на выбор</text>'
-    + mini(80, 200, "#0a1628", "#0f1e35", "#b89a5a", "Тёмно-синий", "#f0ece4")
-    + mini(640, 200, "#17143a", "#211d4e", "#7d73e0", "Лавандовый", "#eceafb")
-    + mini(80, 540, "#fdf6ef", "#f0e2d2", "#c05c2e", "Тёплый", "#3d2010")
-    + mini(640, 540, "#0d1a15", "#132720", "#1d9e75", "Зелёный", "#eaf3ee")
+    + mini(80, 190, "#0a1628", "#0f1e35", "#b89a5a", "Тёмно-синий", "#f0ece4")
+    + mini(640, 190, "#17143a", "#211d4e", "#7d73e0", "Лавандовый", "#eceafb")
+    + mini(80, 496, "#fdf6ef", "#f0e2d2", "#c05c2e", "Тёплый", "#3d2010")
+    + mini(640, 496, "#0d1a15", "#132720", "#1d9e75", "Зелёный", "#eaf3ee")
+    + f'<text x="80" y="836" font-size="40" font-weight="600" fill="{INK}">'
+      '…или в ваших цветах — подберём под вывеску конторы</text>'
     + "</svg>"
 )
 
