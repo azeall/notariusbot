@@ -1,0 +1,55 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Превращение в PNG</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; margin: 30px; background: #f6f7f9; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 20px; }
+  figure { margin: 0; }
+  img { width: 300px; display: block; border: 1px solid #ddd; background: #fff; }
+  figcaption { font-size: 13px; color: #666; margin-top: 6px; }
+</style>
+<h1>Картинки для Авито</h1>
+<p id="status">Готовлю…</p>
+<div class="row" id="row"></div>
+
+<script>
+// Переводим SVG в PNG прямо в браузере: сторонних библиотек нет, а нужен
+// только растр нужного размера. Шрифты берутся системные — на слайдах
+// намеренно нет ничего, что от конкретной гарнитуры зависит.
+const NAMES = [
+  '01-oblozhka-sait', '01b-oblozhka-zayavki', '02-chto-vhodit',
+  '03-menyaete-sami', '04-dannye-i-zakon', '05-tseny', '06-chetyre-oformleniya'
+];
+
+async function toPng(name) {
+  const svg = await (await fetch(name + '.svg')).text();
+  const url = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+  const img = new Image();
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+  const c = document.createElement('canvas');
+  c.width = 1200; c.height = 900;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffffff';
+  g.fillRect(0, 0, 1200, 900);
+  g.drawImage(img, 0, 0, 1200, 900);
+  return c.toDataURL('image/png');
+}
+
+(async () => {
+  const out = [];
+  const row = document.getElementById('row');
+  for (const n of NAMES) {
+    const data = await toPng(n);
+    out.push({ name: n, b64: data.slice(22) });
+    const f = document.createElement('figure');
+    const im = document.createElement('img');
+    im.src = data;
+    const cap = document.createElement('figcaption');
+    cap.textContent = n;
+    f.appendChild(im); f.appendChild(cap);
+    row.appendChild(f);
+  }
+  window.__all = out;
+  document.getElementById('status').textContent = 'Готово: ' + out.length + ' штук';
+})();
+</script>
