@@ -79,7 +79,7 @@ slides["01-oblozhka-sait"] = (
 )
 
 # Вторая обложка — для отдельного объявления тем, у кого сайт уже есть.
-# Цена здесь честная: 15 000 — это подключение, а не сайт.
+# Цена здесь честная: 20 000 — это подключение, а не сайт.
 slides["01b-oblozhka-zayavki"] = (
     head(INK)
     + f'<rect x="0" y="0" width="{W}" height="10" fill="{ACCENT}"/>'
@@ -88,7 +88,7 @@ slides["01b-oblozhka-zayavki"] = (
     + '<text x="80" y="566" font-size="44" font-weight="500" fill="#c9cdd4">Список документов, запись на приём,</text>'
     + '<text x="80" y="626" font-size="44" font-weight="500" fill="#c9cdd4">уведомления в Telegram</text>'
     + f'<rect x="80" y="700" width="520" height="78" rx="39" fill="{ACCENT}"/>'
-    + '<text x="340" y="751" font-size="34" font-weight="600" fill="#ffffff" text-anchor="middle">1 день · 15 000 ₽ + 2 500/мес</text>'
+    + '<text x="340" y="751" font-size="34" font-weight="600" fill="#ffffff" text-anchor="middle">1 день · 20 000 ₽ + 3 000/мес</text>'
     + mark("#6b7280", 848)
     + "</svg>"
 )
@@ -164,8 +164,8 @@ def price_row(y, title, big, small):
 slides["05-tseny"] = (
     head(PAPER)
     + f'<text x="80" y="150" font-size="64" font-weight="700" fill="{INK}" letter-spacing="-2">Сколько стоит</text>'
-    + price_row(330, "Сайт вместе с заявками", "60 000 ₽", "+ 2 500 ₽ в месяц")
-    + price_row(500, "Заявки на готовый сайт", "15 000 ₽", "+ 2 500 ₽ в месяц")
+    + price_row(330, "Сайт вместе с заявками", "60 000 ₽", "+ 3 000 ₽ в месяц")
+    + price_row(500, "Заявки на готовый сайт", "20 000 ₽", "+ 3 000 ₽ в месяц")
     + price_row(670, "Только сайт", "55 000 ₽", "без ежемесячных платежей")
     + f'<line x1="80" y1="596" x2="{W - 80}" y2="596" stroke="#e6e7ea" stroke-width="2"/>'
     + f'<text x="80" y="770" font-size="28" font-weight="500" fill="{MUTE}">Домен и хостинг — напрямую, около 1 500 ₽ в год</text>'
