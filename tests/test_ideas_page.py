@@ -76,7 +76,7 @@ def test_there_are_ideas_to_reject():
 
 
 async def test_page_requires_login(http):
-    response = await http.get("/platform/ideas", headers={"accept": "application/json"})
+    response = await http.get("/platform/todo", headers={"accept": "application/json"})
     assert response.status_code == 401
 
 
@@ -85,9 +85,9 @@ async def test_owner_sees_the_page(http, platform_admin):
         "/platform/login",
         data={"email": platform_admin.email, "password": "vendor12345"},
     )
-    page = await http.get("/platform/ideas")
+    page = await http.get("/platform/todo")
     assert page.status_code == 200
-    assert "Идеи для расширения" in page.text
+    assert "Что доделать" in page.text
     for group in ideas.GROUPS:
         assert group.title in page.text
 
@@ -97,5 +97,55 @@ async def test_notary_cannot_open_vendor_ideas(http, tenant, owner):
     await http.post(
         f"/staff/{tenant.slug}/login", data={"email": owner.email, "password": "secret123"}
     )
+    response = await http.get("/platform/todo", headers={"accept": "application/json"})
+    assert response.status_code == 401
+
+
+# --- направления для нового дела ---------------------------------------------
+
+
+def test_every_direction_names_its_buyer():
+    """Направление без покупателя — не направление, а желание.
+
+    Самая частая ошибка в таких списках: описано что делать и ни слова
+    о том, кому это продавать.
+    """
+    from app.web import directions
+
+    assert directions.BLOCKS
+    for block in directions.BLOCKS:
+        assert block.items, f"пустой раздел: {block.title}"
+        for item in block.items:
+            assert item.who, item.title
+            assert len(item.why) + len(item.against) > 200, item.title
+            assert len(item.verdict) > 20, item.title
+
+
+def test_directions_include_refusals():
+    """Список без отказов — перечень желаний, а не разбор."""
+    from app.web import directions
+
+    refused = [
+        item
+        for block in directions.BLOCKS
+        for item in block.items
+        if item.badge == "closed"
+    ]
+    assert refused, "нет ни одного отвергнутого направления"
+    for item in refused:
+        assert item.against, f"отказ без довода: {item.title}"
+
+
+async def test_owner_sees_directions(http, platform_admin):
+    await http.post(
+        "/platform/login",
+        data={"email": platform_admin.email, "password": "vendor12345"},
+    )
+    page = await http.get("/platform/ideas")
+    assert page.status_code == 200
+    assert "Куда можно уйти" in page.text
+
+
+async def test_directions_need_login(http):
     response = await http.get("/platform/ideas", headers={"accept": "application/json"})
     assert response.status_code == 401

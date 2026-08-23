@@ -28,7 +28,7 @@ from app.models import PlatformAdmin, Request, Staff, StaffRole, Tenant
 import time
 
 from app.domain import password_reset
-from app.web import ideas, sessions
+from app.web import directions, ideas, sessions
 from app.web.deps import (
     SESSION_COOKIE,
     db_session,
@@ -251,8 +251,8 @@ async def tenants_index(
     )
 
 
-@router.get("/platform/ideas", response_class=HTMLResponse)
-async def ideas_page(
+@router.get("/platform/todo", response_class=HTMLResponse)
+async def todo_page(
     http_request: HttpRequest,
     admin: PlatformAdmin = Depends(current_platform_admin),
 ):
@@ -267,9 +267,32 @@ async def ideas_page(
         "platform_ideas.html",
         {
             "stylesheet": "/static/platform.css",
-            "title": "Идеи для расширения",
+            "title": "Что доделать в сервисе",
             "admin": admin,
             "groups": ideas.GROUPS,
+        },
+    )
+
+
+@router.get("/platform/ideas", response_class=HTMLResponse)
+async def directions_page(
+    http_request: HttpRequest,
+    admin: PlatformAdmin = Depends(current_platform_admin),
+):
+    """Направления для нового дела — не про нотариусов.
+
+    Отдельно от доработок намеренно: «доделать» и «начать» — разные решения,
+    и принимаются они по-разному. Один список заставлял бы выбирать между
+    ними, глядя на одну страницу.
+    """
+    return _templates().TemplateResponse(
+        http_request,
+        "platform_directions.html",
+        {
+            "stylesheet": "/static/platform.css",
+            "title": "Куда можно уйти",
+            "admin": admin,
+            "blocks": directions.BLOCKS,
         },
     )
 

@@ -1,0 +1,68 @@
+{% extends "base_panel.html" %}
+{% block content %}
+<div class="topbar" style="margin:-26px -28px 26px">
+  <div class="brand">Сервис заявок</div>
+  <nav>
+    <a href="/platform">Нотариусы</a>
+    <a href="/platform/todo">Доработки</a>
+    <a href="/platform/ideas">Идеи</a>
+  </nav>
+  <a href="/platform/password" class="who" style="text-decoration:none">{{ admin.full_name or admin.email }}</a>
+  <form method="post" action="/platform/logout" style="margin:0">
+    <button class="ghost" type="submit">Выйти</button>
+  </form>
+</div>
+
+<h1>Куда можно уйти</h1>
+<p class="lead">
+  Не доработки сервиса — они на соседней вкладке, — а направления, в которые
+  можно двинуться вообще. У каждого написано, кому это продавать, почему
+  подходит именно вам и что против.
+</p>
+
+<div class="callout">
+  <b>Что считалось преимуществом.</b> Не «умею писать код» — это умеют многие.
+  А то, что от фразы «вот у нас морока с бумагами» до работающей программы
+  проходят дни, а не месяцы. Значит, годятся дела, где боль узкая, покупателя
+  можно найти без рекламного бюджета, а софту не нужно догонять чужие
+  возможности.
+</div>
+
+{% for block in blocks %}
+  <h2 style="margin:34px 0 6px">{{ block.title }}</h2>
+  <p class="lead" style="margin-bottom:16px">{{ block.note }}</p>
+
+  {% for item in block.items %}
+    <div class="card" style="margin-bottom:14px">
+      <div class="card row" style="align-items:flex-start;gap:14px">
+        <div class="grow">
+          <div class="t">{{ item.title }}</div>
+          <div class="m" style="margin-top:6px">{{ item.what }}</div>
+        </div>
+        <span class="badge {{ item.badge }}">{{ item.effort }}</span>
+      </div>
+
+      <p style="margin:14px 0 0"><b>Кому.</b> {{ item.who }}</p>
+      <p style="margin:10px 0 0;white-space:pre-line"><b>Почему.</b> {{ item.why }}</p>
+      {% if item.against %}
+        <p style="margin:10px 0 0;color:var(--slate);white-space:pre-line"><b>Против.</b> {{ item.against }}</p>
+      {% endif %}
+      <p style="margin:10px 0 0"><b>Вывод.</b> {{ item.verdict }}</p>
+    </div>
+  {% endfor %}
+{% endfor %}
+
+<h2 style="margin:38px 0 6px">Одно наблюдение поверх списка</h2>
+<div class="card">
+  <p style="margin:0">
+    Все годные направления здесь устроены одинаково: <b>узкая боль, понятный
+    покупатель, продажа разговором.</b> Все негодные — тоже одинаково:
+    широкий продукт, размытый покупатель, продажа рекламой.
+  </p>
+  <p style="margin:12px 0 0">
+    Это и есть разделительная черта для одиночки. Не «интересно ли делать»
+    и не «большой ли рынок», а <b>можно ли продать первому клиенту разговором,
+    без бюджета</b>. Если нет — сколько ни строй, продать будет нечем.
+  </p>
+</div>
+{% endblock %}
