@@ -18,6 +18,7 @@ from app.models import (
     PARTICIPATION_LABELS,
     ParticipationStatus,
     Request,
+    RequestEvent,
     RequestParticipant,
     RequestStatus,
     Staff,
@@ -536,6 +537,53 @@ async def remove_participant(
         )
     except participation.ParticipationError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return RedirectResponse(
+        f"/staff/requests/{request_id}", status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+@router.post("/requests/{request_id}/checklist/{index}")
+async def toggle_document(
+    request_id: uuid.UUID,
+    index: int,
+    staff: Staff = Depends(current_staff),
+    session: AsyncSession = Depends(db_session),
+):
+    """Отметить пункт перечня полученным или снять отметку.
+
+    Ради этого сервис и покупают: смысл в том, что клиент приходит
+    подготовленным, а до сих пор проверять комплект приходилось глазами,
+    и клиенту никто не говорил, чего не хватает.
+    """
+    request = await _editable(session, staff, request_id)
+
+    if not 0 <= index < len(request.checklist):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Такого пункта нет")
+
+    got = set(request.received_documents or [])
+    title = request.checklist[index].get("title", f"пункт {index + 1}")
+    if index in got:
+        got.discard(index)
+        action = "снята отметка"
+    else:
+        got.add(index)
+        action = "отмечен полученным"
+
+    # JSONB меняется только присваиванием нового списка: правку на месте
+    # SQLAlchemy не заметит и в базу не отправит.
+    request.received_documents = sorted(got)
+
+    session.add(
+        RequestEvent(
+            tenant_id=request.tenant_id,
+            request_id=request.id,
+            actor_staff_id=staff.id,
+            actor_label=staff.full_name,
+            comment=f"{title} — {action}",
+        )
+    )
+    await session.flush()
+
     return RedirectResponse(
         f"/staff/requests/{request_id}", status_code=status.HTTP_303_SEE_OTHER
     )

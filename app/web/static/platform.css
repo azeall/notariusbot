@@ -215,3 +215,19 @@ ul.checklist li .opt { color: var(--muted); font-size: 0.8125rem; margin-left: 6
 }
 .summary span { color: var(--slate); font-size: 12.5px; }
 .summary .warn b { color: #b45309; }
+
+/* Те же отметки в светлом кабинете. */
+ul.checklist.marks li { display: flex; align-items: flex-start; gap: 12px; padding-left: 0; }
+ul.checklist.marks li::before { display: none; }
+ul.checklist.marks .grow { flex: 1; }
+
+.mark {
+  flex-shrink: 0; width: 24px; height: 24px; margin-top: 1px;
+  border: 1.5px solid var(--line, #e6e7ea); border-radius: 6px;
+  background: #fff; color: #fff;
+  font: 600 14px/1 inherit; cursor: pointer; padding: 0;
+  display: grid; place-items: center;
+  transition: background .14s, border-color .14s;
+}
+.mark:hover { border-color: var(--ink, #0b0b0d); }
+.mark.on { background: #1e7a3c; border-color: #1e7a3c; }

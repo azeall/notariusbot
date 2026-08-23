@@ -33,16 +33,41 @@
 
 <h2>Перечень, который видел клиент</h2>
 <div class="card">
-  <ul class="checklist">
+  {% set got = req.received_documents or [] %}
+  <ul class="checklist marks">
     {% for doc in req.checklist %}
       <li{% if not doc.is_required %} class="optional"{% endif %}>
-        {{ doc.title }}{% if not doc.is_required %}<span class="opt">если есть</span>{% endif %}
-        {% if doc.description %}<div class="m">{{ doc.description }}</div>{% endif %}
+        {% if rights.can_edit %}
+          <form method="post" action="/staff/requests/{{ req.id }}/checklist/{{ loop.index0 }}" style="margin:0">
+            <button type="submit" class="mark {{ 'on' if loop.index0 in got }}"
+                    title="{{ 'Снять отметку' if loop.index0 in got else 'Отметить полученным' }}">
+              {{ '✓' if loop.index0 in got else '' }}
+            </button>
+          </form>
+        {% else %}
+          <span class="mark {{ 'on' if loop.index0 in got }}">{{ '✓' if loop.index0 in got else '' }}</span>
+        {% endif %}
+        <div class="grow">
+          {{ doc.title }}{% if not doc.is_required %}<span class="opt">если есть</span>{% endif %}
+          {% if doc.description %}<div class="m">{{ doc.description }}</div>{% endif %}
+        </div>
       </li>
     {% else %}
       <li>Перечень не задан</li>
     {% endfor %}
   </ul>
+
+  {% set missing = req.missing_documents %}
+  {% if req.checklist %}
+    <p class="m" style="margin:14px 0 0">
+      {% if missing %}
+        Не хватает обязательных: <b>{{ missing|length }}</b> —
+        {{ missing|map(attribute='title')|join(', ') }}
+      {% else %}
+        Всё обязательное получено.
+      {% endif %}
+    </p>
+  {% endif %}
 </div>
 
 <h2>Документы ({{ req.attachments|length }})</h2>

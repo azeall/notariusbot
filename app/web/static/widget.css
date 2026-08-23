@@ -349,3 +349,9 @@ label.field span.cap { display: block; font-size: 13px; color: var(--slate); mar
 .rules li { padding-left: 15px; position: relative; margin-bottom: 4px; }
 .rules li::before { content: "—"; position: absolute; left: 0; }
 .rules b { color: var(--cream); font-weight: 600; }
+
+/* Полученный документ гаснет: клиент должен видеть не весь список заново,
+   а то, чего ещё не хватает. */
+ul.checklist li.got { opacity: .45; }
+ul.checklist li.got::before { background: var(--ok, #7fbf8f); }
+ul.checklist li.got .opt { color: var(--ok, #7fbf8f); }

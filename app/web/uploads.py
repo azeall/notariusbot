@@ -48,6 +48,10 @@ async def upload_page(
             # "request" в контексте занят Starlette под HTTP-запрос.
             "req": request,
             "checklist": request.checklist if request else [],
+            # Что уже дошло — чтобы клиент видел не весь список заново,
+            # а только то, чего ещё не хватает. Иначе он присылает то же
+            # самое второй раз, а сотрудник разбирает это руками.
+            "received": (request.received_documents or []) if request else [],
             "max_mb": get_settings().max_upload_bytes // (1024 * 1024),
         },
     )

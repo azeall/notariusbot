@@ -17,12 +17,25 @@
   <main class="page scroll">
     <div id="form-part">
       {% if checklist %}
-        <p class="hint">Нужны эти документы:</p>
+        {% set left = checklist|length - received|length %}
+        <p class="hint">
+          {% if received %}
+            {% if left > 0 %}Осталось прислать:{% else %}Всё получено, спасибо.{% endif %}
+          {% else %}
+            Нужны эти документы:
+          {% endif %}
+        </p>
         <ul class="checklist">
           {% for doc in checklist %}
-            <li{% if not doc.is_required %} class="optional"{% endif %}>
-              <div>{{ doc.title }}{% if not doc.is_required %}<span class="opt">если есть</span>{% endif %}</div>
-              {% if doc.description %}<div class="d">{{ doc.description }}</div>{% endif %}
+            <li{% if loop.index0 in received %} class="got"{% elif not doc.is_required %} class="optional"{% endif %}>
+              <div>
+                {{ doc.title }}
+                {%- if loop.index0 in received %}<span class="opt">получено</span>
+                {%- elif not doc.is_required %}<span class="opt">если есть</span>{% endif %}
+              </div>
+              {% if doc.description and loop.index0 not in received %}
+                <div class="d">{{ doc.description }}</div>
+              {% endif %}
             </li>
           {% endfor %}
         </ul>

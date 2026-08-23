@@ -46,6 +46,26 @@ class Request(Base, UUIDPrimaryKey, TenantScoped, Timestamps):
     # Перечень документов ровно в том виде, в каком его увидел клиент.
     checklist: Mapped[list[dict]] = mapped_column(JSONB, default=list, nullable=False)
 
+    # Номера пунктов перечня, которые сотрудник отметил полученными.
+    #
+    # Отдельным полем, а не отметкой внутри checklist: тот слепок обязан
+    # остаться ровно таким, каким его показали клиенту. Смешать в нём то,
+    # что обещали, и то, что дошло, — значит однажды не суметь ответить
+    # на вопрос «а что мы вообще просили».
+    received_documents: Mapped[list[int]] = mapped_column(
+        JSONB, default=list, nullable=False, server_default="[]"
+    )
+
+    @property
+    def missing_documents(self) -> list[dict]:
+        """Обязательные пункты, которых ещё нет."""
+        got = set(self.received_documents or [])
+        return [
+            doc
+            for i, doc in enumerate(self.checklist)
+            if doc.get("is_required", True) and i not in got
+        ]
+
     status: Mapped[RequestStatus] = mapped_column(
         Enum(RequestStatus, name="request_status", native_enum=False, length=32),
         default=RequestStatus.NEW,
