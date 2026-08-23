@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
+from app.domain import password_reset
 from app.domain.security import hash_password
 from app.models import (
     AuditLog,
@@ -23,7 +24,7 @@ from app.models import (
     Tenant,
     WorkingHours,
 )
-from app.web.deps import current_owner, db_session
+from app.web.deps import client_ip, current_owner, db_session, public_base_url
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -504,6 +505,7 @@ async def staff_index(
             "people": people,
             "http_request": http_request,
             "bot_username": get_settings().telegram_bot_username,
+            "base": public_base_url(http_request),
         },
     )
 
@@ -581,6 +583,46 @@ async def unlink_telegram(
     person.telegram_chat_id = None
     person.telegram_link_code = None
     return RedirectResponse("/admin/staff", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/staff/{staff_id}/reset-link")
+async def issue_reset_link(
+    staff_id: uuid.UUID,
+    http_request: HttpRequest,
+    owner: Staff = Depends(current_owner),
+    session: AsyncSession = Depends(db_session),
+):
+    """Ссылка на смену пароля для сотрудника.
+
+    Выдаёт нотариус: он и так отвечает за то, кто имеет доступ к делам его
+    клиентов. Почтовый ящик для этого не нужен — канал между ним и его
+    помощником уже есть и уже доверен.
+    """
+    person = await session.scalar(
+        select(Staff).where(Staff.id == staff_id, Staff.tenant_id == owner.tenant_id)
+    )
+    if person is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Сотрудник не найден")
+
+    token = await password_reset.issue(session, person)
+    session.add(
+        AuditLog(
+            tenant_id=owner.tenant_id,
+            actor_staff_id=owner.id,
+            actor_label=owner.full_name,
+            action="password_reset_issued",
+            object_type="staff",
+            object_id=str(person.id),
+            source_ip=client_ip(http_request),
+            details=person.full_name,
+        )
+    )
+    await session.flush()
+
+    return RedirectResponse(
+        f"/admin/staff?reset={token}&for={person.id}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
 
 
 @router.post("/staff/{staff_id}/toggle")

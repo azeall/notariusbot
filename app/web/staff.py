@@ -7,7 +7,7 @@ from sqlalchemy import false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.domain import access, participation
+from app.domain import access, participation, password_reset
 from app.domain.requests import claim_request, issue_upload_token, transition_request
 from app.domain.security import hash_password, verify_password
 from app.domain.statuses import STATUS_LABELS, ALLOWED_TRANSITIONS, TransitionError
@@ -393,6 +393,99 @@ async def request_detail(
             "colleagues": colleagues,
         },
     )
+
+
+@router.get("/reset/{token}", response_class=HTMLResponse)
+async def reset_form(
+    token: str,
+    http_request: HttpRequest,
+    session: AsyncSession = Depends(db_session),
+):
+    """Страница смены пароля по одноразовой ссылке."""
+    staff = await password_reset.resolve(session, token)
+    if staff is None:
+        return _templates().TemplateResponse(
+            http_request,
+            "reset_expired.html",
+            {"title": "Ссылка недействительна", "stylesheet": "/static/notary.css"},
+            status_code=status.HTTP_410_GONE,
+        )
+    tenant = await session.get(Tenant, staff.tenant_id)
+    return _templates().TemplateResponse(
+        http_request,
+        "reset_password.html",
+        {
+            "title": "Новый пароль",
+            "stylesheet": "/static/notary.css",
+            "who": staff.full_name or staff.email,
+            "tenant": tenant,
+            "token": token,
+            "error": None,
+        },
+    )
+
+
+@router.post("/reset/{token}")
+async def reset_submit(
+    token: str,
+    http_request: HttpRequest,
+    new_password: str = Form(...),
+    repeat_password: str = Form(...),
+    session: AsyncSession = Depends(db_session),
+):
+    staff = await password_reset.resolve(session, token)
+    if staff is None:
+        return _templates().TemplateResponse(
+            http_request,
+            "reset_expired.html",
+            {"title": "Ссылка недействительна", "stylesheet": "/static/notary.css"},
+            status_code=status.HTTP_410_GONE,
+        )
+
+    tenant = await session.get(Tenant, staff.tenant_id)
+
+    def again(error: str):
+        return _templates().TemplateResponse(
+            http_request,
+            "reset_password.html",
+            {
+                "title": "Новый пароль",
+                "stylesheet": "/static/notary.css",
+                "who": staff.full_name or staff.email,
+                "tenant": tenant,
+                "token": token,
+                "error": error,
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if len(new_password) < 8:
+        return again("Пароль короче 8 символов.")
+    if new_password != repeat_password:
+        return again("Пароли не совпадают.")
+
+    staff.password_hash = hash_password(new_password)
+    password_reset.consume(staff)
+
+    session.add(
+        AuditLog(
+            tenant_id=staff.tenant_id,
+            actor_staff_id=staff.id,
+            actor_label=staff.full_name,
+            action="password_reset",
+            object_type="staff",
+            object_id=str(staff.id),
+            source_ip=client_ip(http_request),
+        )
+    )
+    await session.flush()
+
+    # Входим сразу: человек только что доказал владение ссылкой и задал
+    # пароль — просить его ввести тот же пароль ещё раз незачем.
+    response = RedirectResponse("/staff", status_code=status.HTTP_303_SEE_OTHER)
+    value, ttl = issue_session_cookie(staff, remember=False)
+    sessions.attach(response, SESSION_COOKIE, value, ttl)
+    return response
 
 
 @router.post("/requests/{request_id}/claim")

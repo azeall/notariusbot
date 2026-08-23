@@ -27,6 +27,7 @@ from app.domain.theme import DEFAULT_ACCENT, FONTS, MODES, normalize_accent
 from app.models import PlatformAdmin, Request, Staff, StaffRole, Tenant
 import time
 
+from app.domain import password_reset
 from app.web import ideas, sessions
 from app.web.deps import (
     SESSION_COOKIE,
@@ -441,6 +442,36 @@ async def reissue_invite(
     token = await _issue_invite(session, tenant)
     return RedirectResponse(
         f"/platform?invited={tenant.slug}&token={token}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post("/platform/tenants/{tenant_id}/reset-link")
+async def issue_notary_reset(
+    tenant_id: uuid.UUID,
+    admin: PlatformAdmin = Depends(current_platform_admin),
+    session: AsyncSession = Depends(db_session),
+):
+    """Ссылка на смену пароля для самого нотариуса.
+
+    Приглашение для этого не годится: оно заводит вход заново и стирает
+    то, что нотариус уже настроил. Пароль забывают чаще, чем теряют доступ
+    целиком, и лечиться это должно мягче.
+    """
+    owner = await session.scalar(
+        select(Staff).where(
+            Staff.tenant_id == tenant_id,
+            Staff.role == StaffRole.OWNER,
+            Staff.is_active.is_(True),
+        )
+    )
+    if owner is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "У этой конторы ещё нет входа")
+
+    token = await password_reset.issue(session, owner)
+    tenant = await session.get(Tenant, tenant_id)
+    return RedirectResponse(
+        f"/platform?reset={token}&slug={tenant.slug}",
         status_code=status.HTTP_303_SEE_OTHER,
     )
 

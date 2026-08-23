@@ -15,6 +15,18 @@
   и попадёт в свой кабинет.
 </p>
 
+{% if http_request.query_params.get('reset') %}
+  <div class="callout">
+    Ссылка на смену пароля для нотариуса <b>{{ http_request.query_params.get('slug') }}</b>.
+    Действует час, срабатывает один раз:<br><br>
+    <code>{{ base }}/staff/reset/{{ http_request.query_params.get('reset') }}</code>
+    <div style="margin-top:10px;color:var(--slate);font-size:12.5px">
+      Настройки конторы при этом сохраняются — в отличие от нового приглашения,
+      которое заводит вход заново.
+    </div>
+  </div>
+{% endif %}
+
 {% if http_request.query_params.get('token') %}
   {% set slug = http_request.query_params.get('invited') %}
   <div class="callout">
@@ -91,6 +103,11 @@
       </div>
     </div>
     <a class="btn ghost" href="/platform/tenants/{{ tenant.id }}">Изменить</a>
+    {% if tenant.is_activated %}
+      <form method="post" action="/platform/tenants/{{ tenant.id }}/reset-link" style="margin:0">
+        <button class="ghost" type="submit">Сбросить пароль</button>
+      </form>
+    {% endif %}
     <form method="post" action="/platform/tenants/{{ tenant.id }}/invite" style="margin:0">
       <button class="ghost" type="submit">
         {{ 'Новая ссылка' if tenant.is_activated else 'Ссылка для входа' }}

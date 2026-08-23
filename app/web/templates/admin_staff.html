@@ -1,5 +1,17 @@
 {% extends "base_panel.html" %}
 {% block content %}
+{% if http_request.query_params.get('reset') %}
+  <div class="callout">
+    Ссылка на смену пароля. Передайте её сотруднику любым способом —
+    она действует час и сработает один раз:<br><br>
+    <code>{{ base }}/staff/reset/{{ http_request.query_params.get('reset') }}</code>
+    <div style="margin-top:10px;color:var(--slate);font-size:12.5px">
+      Показывается только сейчас: в базе хранится лишь отпечаток.
+      Потеряли — выдайте новую, прежняя перестанет работать.
+    </div>
+  </div>
+{% endif %}
+
 <h1>Сотрудники</h1>
 <p class="lead">Заявки видят все сотрудники, редактировать услуги может только владелец.</p>
 
@@ -32,6 +44,9 @@
         <button class="ghost" type="submit">Подключить Telegram</button>
       </form>
     {% endif %}
+    <form method="post" action="/admin/staff/{{ person.id }}/reset-link" style="margin:0">
+      <button class="ghost" type="submit">Сбросить пароль</button>
+    </form>
     {% if person.id != staff.id %}
       <form method="post" action="/admin/staff/{{ person.id }}/toggle" style="margin:0">
         <button class="ghost" type="submit">{{ 'Включить' if not person.is_active else 'Отключить' }}</button>

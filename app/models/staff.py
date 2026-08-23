@@ -1,5 +1,6 @@
+from datetime import datetime
 
-from sqlalchemy import Boolean, Enum, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Enum, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TenantScoped, Timestamps, UUIDPrimaryKey
@@ -30,6 +31,17 @@ class Staff(Base, UUIDPrimaryKey, TenantScoped, Timestamps):
         String(32), nullable=True, unique=True
     )
     notify_new_requests: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Сброс пароля по одноразовой ссылке.
+    #
+    # Почты у сервиса нет, и заводить её ради одной задачи — лишний узел,
+    # который однажды отвалится молча. Ссылку выдаёт тот, кто и так отвечает
+    # за доступ: нотариус — своим сотрудникам, владелец сервиса — нотариусу.
+    # В базе хранится отпечаток, а не сама ссылка.
+    reset_token_hash: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    reset_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     tenant: Mapped["Tenant"] = relationship(back_populates="staff")  # noqa: F821
 
