@@ -73,3 +73,6 @@ class RequestOut(BaseModel):
     checklist: list[DocumentOut]
     upload_url: str | None = None
     appointment_at: datetime | None = None
+    # Ссылка, по которой клиент сам перенесёт или отменит визит. Есть только
+    # у услуг с личным приёмом — переносить нечего, когда времени не назначали.
+    visit_url: str | None = None

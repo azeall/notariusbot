@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.domain import catalog
+from app.domain import visit_links
 from app.domain.requests import (
     RequestError,
     count_recent_requests_from_ip,
@@ -167,6 +168,7 @@ async def submit_request(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 
     appointment_at: datetime | None = None
+    visit_url: str | None = None
     if service.submission_mode is SubmissionMode.VISIT:
         if payload.slot is None:
             raise HTTPException(
@@ -179,6 +181,9 @@ async def submit_request(
         except SlotUnavailable as exc:
             raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
         appointment_at = appointment.starts_at
+        # Ссылка на перенос выдаётся сразу: спохватываются обычно не в тот
+        # момент, когда переписка с ботом ещё открыта.
+        visit_url = visit_links.url_for(public_base_url(http_request), request.id)
         request.preferred_time_note = _slot_label(
             appointment.starts_at.astimezone(ZoneInfo(tenant.timezone))
         )
@@ -206,4 +211,5 @@ async def submit_request(
         checklist=[DocumentOut(**item) for item in request.checklist],
         upload_url=upload_url,
         appointment_at=appointment_at,
+        visit_url=visit_url,
     )

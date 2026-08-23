@@ -20,6 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
 from app.channels.flow import slot_label
+from app.config import get_settings
+from app.domain import visit_links
 from app.db import dispose_engine, get_sessionmaker
 from app.models import Appointment, Client, Request, Tenant
 from app.notifications import send_to_channel
@@ -33,7 +35,11 @@ SAME_DAY = timedelta(hours=3)
 
 
 def render_reminder(
-    tenant: Tenant, request: Request, when_local: str, day_before: bool
+    tenant: Tenant,
+    request: Request,
+    when_local: str,
+    day_before: bool,
+    visit_url: str | None = None,
 ) -> str:
     lines = [
         "Напоминаем о записи к нотариусу." if day_before else "Ваш приём сегодня.",
@@ -45,14 +51,18 @@ def render_reminder(
     if tenant.address:
         lines.append(f"Адрес: {tenant.address}")
 
-    required = [item["title"] for item in request.checklist if item.get("is_required")]
-    if required:
+    # Напоминаем только о том, чего ещё нет. Перечислять снова присланное —
+    # верный способ, чтобы список перестали читать целиком.
+    missing = [item["title"] for item in request.missing_documents]
+    if missing:
         lines.append("")
         lines.append("Возьмите с собой:")
-        lines.extend(f"• {title}" for title in required)
+        lines.extend(f"• {title}" for title in missing)
 
-    if tenant.phone:
-        lines.append("")
+    lines.append("")
+    if visit_url:
+        lines.append(f"Перенести или отменить: {visit_url}")
+    elif tenant.phone:
         lines.append(f"Если планы поменялись, позвоните: {tenant.phone}")
     return "\n".join(lines)
 
@@ -110,7 +120,16 @@ async def send_due_reminders(
                 when_local = slot_label(
                     appointment.starts_at.astimezone(ZoneInfo(tenant.timezone))
                 )
-                text = render_reminder(tenant, request, when_local, is_day_before)
+                # Ссылка на перенос ведёт на наш адрес, а не на сайт нотариуса:
+                # страница живёт в сервисе, и сайт для неё не нужен.
+                base = get_settings().public_base_url
+                text = render_reminder(
+                    tenant,
+                    request,
+                    when_local,
+                    is_day_before,
+                    visit_url=visit_links.url_for(base, request.id),
+                )
 
                 if dry_run:
                     delivered = True

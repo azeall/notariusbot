@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="/static/widget.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="name">{{ tenant.display_name }}</div>
+    <div class="sub">Заявка № {{ req.public_number }} · {{ req.service_title }}</div>
+  </header>
+
+  <main class="page scroll">
+    {% if moved %}
+      <div class="callout">Время изменено. Сотрудник увидит новое.</div>
+    {% endif %}
+
+    <h2>Вы записаны на {{ appointment.starts_at.strftime('%d.%m.%Y, %H:%M') }}</h2>
+    <p class="hint">
+      Не получается прийти — выберите другое время или отмените запись.
+      Звонить не нужно.
+    </p>
+
+    {% if slots %}
+      <p class="hint">Свободное время:</p>
+      <form method="post" action="/visit/{{ token }}/move">
+        <ul class="checklist">
+          {% for slot in slots %}
+            <li style="padding-left:0">
+              <button class="ghost" type="submit" name="slot" value="{{ slot.isoformat() }}"
+                      style="width:100%;text-align:left">
+                {{ slot.strftime('%d %B, %H:%M') }}
+              </button>
+            </li>
+          {% endfor %}
+        </ul>
+      </form>
+    {% else %}
+      <div class="callout">
+        Свободного времени на ближайшие две недели нет. Если нужно перенести —
+        позвоните в контору{% if tenant.phone %}: {{ tenant.phone }}{% endif %}.
+      </div>
+    {% endif %}
+
+    <form method="post" action="/visit/{{ token }}/cancel" style="margin-top:22px"
+          onsubmit="return confirm('Отменить запись? Время освободится для других.')">
+      <button class="ghost" type="submit">Отменить запись</button>
+    </form>
+  </main>
+</div>
+</body>
+</html>
