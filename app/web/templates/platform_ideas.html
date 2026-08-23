@@ -31,8 +31,9 @@
   <h2 style="margin:34px 0 6px">{{ group.title }}</h2>
   <p class="lead" style="margin-bottom:16px">{{ group.note }}</p>
 
+  {% set is_done = group.title == 'Готово' %}
   {% for idea in group.items %}
-    <div class="card" style="margin-bottom:14px">
+    <div class="card{% if is_done %} quiet{% endif %}" style="margin-bottom:14px">
       <div class="card row" style="align-items:flex-start;gap:14px">
         <div class="grow">
           <div class="t">{{ idea.title }}</div>

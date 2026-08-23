@@ -231,3 +231,8 @@ ul.checklist.marks .grow { flex: 1; }
 }
 .mark:hover { border-color: var(--ink, #0b0b0d); }
 .mark.on { background: #1e7a3c; border-color: #1e7a3c; }
+
+/* Сделанное в списке доработок: оставлено, чтобы было видно, что закрыто,
+   но приглушено — иначе оно перевешивает предстоящее. */
+.card.quiet { background: var(--wash, #f6f7f9); border-style: dashed; }
+.card.quiet .t { opacity: .75; }
