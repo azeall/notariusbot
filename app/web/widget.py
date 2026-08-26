@@ -16,14 +16,13 @@ from app.domain.requests import (
     issue_upload_token,
 )
 from app.domain.schedule import SlotUnavailable, available_slots, book_slot
+from app.legal import CONSENT_VERSION
 from app.models import Channel, Client, Service, SubmissionMode, Tenant
 from app.notifications import notify_new_request
 from app.web.deps import client_ip, db_session, public_base_url, resolve_tenant
 from app.web.schemas import DocumentOut, RequestIn, RequestOut, ServiceOut, SlotOut
 
 router = APIRouter(prefix="/api/v1/{slug}", tags=["widget"])
-
-CONSENT_VERSION = "2026-08-15"
 
 WEEKDAYS_RU = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
 MONTHS_RU = [

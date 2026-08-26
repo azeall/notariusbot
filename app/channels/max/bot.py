@@ -105,7 +105,7 @@ class MaxBot:
             session.step = GIVING_CONSENT
             await self.client.send(
                 chat,
-                flow.ASK_CONSENT,
+                flow.ask_consent(session.draft.tenant_slug),
                 buttons=[[("Согласен", "consent:yes")], [("Отказаться", "consent:no")]],
             )
             return

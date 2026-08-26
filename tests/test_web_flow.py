@@ -526,10 +526,34 @@ async def test_embed_script_is_served(http, tenant):
     assert "new URL(current.src).origin" in response.text
 
 
+async def test_embed_falls_back_when_widget_does_not_answer(http, tenant):
+    """Не открывшийся виджет должен уступить место запасной форме сайта.
+
+    Ошибку загрузки чужого домена в iframe узнать нельзя: `error` не срабатывает,
+    а `load` приходит и для страницы ошибки браузера. Поэтому виджет здоровается
+    сообщением, а скрипт ждёт приветствия и по таймауту сообщает сайту.
+
+    Без этого посетитель видел пустое окно с ошибкой браузера поверх сайта
+    нотариуса — то есть сломанным выглядел сайт, а не сервис.
+    """
+    response = await http.get("/embed.js")
+    assert 'data.type !== "ready"' in response.text
+    assert "notarybot:unavailable" in response.text
+    # Сброс адреса: иначе одна неудачная попытка застревала бы навсегда.
+    assert 'frame.src = ""' in response.text
+
+
 async def test_widget_page_renders(http, tenant, service):
     response = await http.get(f"/widget/{tenant.slug}")
     assert response.status_code == 200
     assert tenant.display_name in response.text
+
+
+async def test_widget_greets_the_embedding_site(http, tenant, service):
+    """Виджет обязан поздороваться, иначе сайт сочтёт его недоступным."""
+    response = await http.get(f"/widget/{tenant.slug}")
+    assert "postMessage" in response.text
+    assert "'notarybot'" in response.text or '"notarybot"' in response.text
 
 
 async def test_healthz(http):

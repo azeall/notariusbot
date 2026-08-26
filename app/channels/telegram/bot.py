@@ -340,7 +340,7 @@ async def _accept_phone(message: Message, state: FSMContext, raw: str) -> None:
     await _save(state, draft)
     await state.set_state(Talk.giving_consent)
     await _drop_reply_keyboard(message)
-    await _prompt(message, state, flow.ASK_CONSENT, consent_keyboard())
+    await _prompt(message, state, flow.ask_consent(draft.tenant_slug), consent_keyboard())
 
 
 @dispatcher.callback_query(F.data == "consent:no")

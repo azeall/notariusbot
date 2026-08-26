@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Request as HttpRequest
 from fastapi.responses import HTMLResponse, Response
 
+from app import legal
 from app.config import get_settings
 from app.domain.theme import build_palette, palette_css
 from app.models import Tenant
@@ -22,6 +23,7 @@ async def widget_page(http_request: HttpRequest, tenant: Tenant = Depends(resolv
             "title": f"Заявка нотариусу — {tenant.display_name}",
             "tenant": tenant,
             "api_base": f"/api/v1/{tenant.slug}",
+            "privacy_url": f"/{tenant.slug}/privacy",
             "palette_css": palette_css(palette),
         },
     )
@@ -31,6 +33,40 @@ async def widget_page(http_request: HttpRequest, tenant: Tenant = Depends(resolv
         allowed = " ".join(tenant.allowed_origins)
         response.headers["Content-Security-Policy"] = f"frame-ancestors 'self' {allowed}"
     return response
+
+
+@router.get("/{slug}/privacy", response_class=HTMLResponse)
+async def privacy_page(http_request: HttpRequest, tenant: Tenant = Depends(resolve_tenant)):
+    """Политика обработки персональных данных конкретного нотариуса.
+
+    Открыта без входа намеренно: ч. 2 ст. 18.1 152-ФЗ требует свободного доступа
+    к политике, а человек решает, присылать ли паспорт, до всякого входа.
+
+    Страница своя у каждого нотариуса, потому что оператор — он, а не сервис.
+    Общая страница на весь сервис называла бы оператором не того и вводила бы
+    клиента в заблуждение ровно в том месте, где он принимает решение.
+    """
+    from app.web.main import TEMPLATES
+
+    settings = get_settings()
+    palette = build_palette(tenant.widget_mode, tenant.widget_accent, tenant.widget_font)
+    return TEMPLATES.TemplateResponse(
+        http_request,
+        "privacy.html",
+        {
+            "title": f"Обработка персональных данных — {tenant.display_name}",
+            "tenant": tenant,
+            "operator": legal.Operator.of(tenant),
+            "purposes": legal.PROCESSING_PURPOSES,
+            "collected": legal.PERSONAL_DATA_COLLECTED,
+            "consent_text": legal.consent_text(tenant),
+            "consent_version": legal.CONSENT_VERSION,
+            "policy_version": legal.POLICY_VERSION,
+            "retention_days": settings.document_retention_days,
+            "max_age_days": settings.document_max_age_days,
+            "palette_css": palette_css(palette),
+        },
+    )
 
 
 @router.get("/embed.js")
@@ -115,9 +151,42 @@ _EMBED_TEMPLATE = """
   overlay.appendChild(close);
   overlay.appendChild(frame);
 
+  // Сколько ждём приветствия от страницы виджета, прежде чем счесть её
+  // недоступной.
+  //
+  // Узнать об ошибке загрузки чужого домена в iframe нельзя: событие error
+  // на нём не срабатывает, а load приходит и для страницы ошибки браузера.
+  // Поэтому единственный надёжный признак — рукопожатие: виджет, загрузившись,
+  // здоровается сообщением. Не поздоровался — значит не открылся.
+  //
+  // Это не теория: имя сервиса резали у части провайдеров, и посетитель сайта
+  // нотариуса получал белое окно с ошибкой браузера внутри. Выглядело так,
+  // будто сломан сайт, за который заплатили, а не сервис.
+  var READY_TIMEOUT_MS = 6000;
+  var ready = false;
+  var failTimer = null;
+
+  window.addEventListener("message", function (event) {
+    var data = event.data;
+    if (!data || data.source !== "notarybot" || data.type !== "ready") return;
+    ready = true;
+    if (failTimer) { clearTimeout(failTimer); failTimer = null; }
+  });
+
   function open() {
     if (!frame.src) frame.src = BASE + "/widget/" + encodeURIComponent(slug);
     overlay.setAttribute("data-open", "1");
+    if (ready || failTimer) return;
+    failTimer = setTimeout(function () {
+      failTimer = null;
+      if (ready) return;
+      hide();
+      // Адрес сбрасываем, чтобы следующая попытка грузила заново: сбой мог быть
+      // временным, а застрявший битый src сделал бы его вечным.
+      frame.src = "";
+      // Решение отдаём сайту: у него есть телефон нотариуса и своя форма.
+      document.dispatchEvent(new CustomEvent("notarybot:unavailable"));
+    }, READY_TIMEOUT_MS);
   }
   function hide() { overlay.removeAttribute("data-open"); }
 

@@ -17,10 +17,12 @@ from app.config import get_settings
 from app.domain import catalog
 from app.domain.requests import RequestError, create_request, issue_upload_token
 from app.domain.schedule import SlotUnavailable, available_slots, book_slot
+
+# Версия согласия и его текст живут в app.legal — одни на все каналы. Своя копия
+# здесь означала бы, что в базу пишется версия, которой человек не видел.
+from app.legal import CONSENT_VERSION, consent_summary
 from app.models import Channel, Client, Request, Service, SubmissionMode, Tenant
 from app.notifications import notify_new_request as notify_staff
-
-CONSENT_VERSION = "2026-08-15"
 
 WEEKDAYS_RU = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
 MONTHS_RU = [
@@ -63,11 +65,22 @@ ASK_NAME = "Как вас зовут? Напишите фамилию и имя.
 
 ASK_PHONE = "Оставьте номер телефона для связи."
 
-ASK_CONSENT = (
-    "Для оформления заявки нужно ваше согласие на обработку персональных данных.\n\n"
-    "Данные используются только для подготовки нотариального действия и хранятся "
-    "ограниченное время."
-)
+ASK_CONSENT = consent_summary()
+
+
+def ask_consent(tenant_slug: str) -> str:
+    """Спросить согласие, дав ссылку на полный текст.
+
+    Короткая выжимка нужна, потому что простыню в мессенджере не читают. Но одна
+    выжимка согласием не является: закон требует назвать оператора, перечень
+    данных и цели, а это не помещается в сообщение, которое дочитают. Отсюда
+    и то и другое: смысл в сообщении, полный текст по ссылке.
+
+    Берём slug, а не самого нотариуса: на этом шаге разговор держит только его,
+    и лезть за карточкой в базу ради одной ссылки незачем.
+    """
+    base = get_settings().public_base_url.rstrip("/")
+    return f"{ASK_CONSENT}\n\nПолный текст: {base}/{tenant_slug}/privacy"
 
 NOT_FOUND = (
     "Не нашёл подходящей услуги по этим словам. Попробуйте написать иначе "
