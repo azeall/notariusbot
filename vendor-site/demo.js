@@ -199,17 +199,30 @@
       '--wdg-bg': '#0d1a15', '--wdg-bg2': '#132720', '--wdg-bg3': '#1a352b',
       '--wdg-text': '#eaf3ee', '--wdg-mute': '#8aa79a',
       '--wdg-line': 'rgba(29,158,117,.22)', '--wdg-accent': '#1d9e75', '--wdg-on-accent': '#ffffff' } },
+    /* Тёплая — обожжённая глина. Была светлым кремом: сайт warm с тех пор
+       стал тёмным, и пресет показывал не то, что получит покупатель. */
     { label: 'Тёплая', v: {
-      '--wdg-bg': '#fdf6ef', '--wdg-bg2': '#f6e9db', '--wdg-bg3': '#efdcc7',
-      '--wdg-text': '#3d2010', '--wdg-mute': '#8a6a53',
-      '--wdg-line': 'rgba(61,32,16,.14)', '--wdg-accent': '#c05c2e', '--wdg-on-accent': '#ffffff' } },
+      '--wdg-bg': '#1a1411', '--wdg-bg2': '#241c18', '--wdg-bg3': '#30261f',
+      '--wdg-text': '#f2e9dd', '--wdg-mute': '#a69687',
+      '--wdg-line': 'rgba(192,92,46,.22)', '--wdg-accent': '#c05c2e', '--wdg-on-accent': '#ffffff' } },
+    /* Лавандовая — тёплая бумага и приглушённый индиго. Была тёмно-фиолетовой
+       с кислотным #7d73e0; сайт lavender ушёл от этого набора ровно потому,
+       что он «приятен глазу и нейтрален по смыслу». */
     { label: 'Лавандовая', v: {
-      '--wdg-bg': '#17143a', '--wdg-bg2': '#211d4e', '--wdg-bg3': '#2c2764',
-      '--wdg-text': '#eceafb', '--wdg-mute': '#9d97c8',
-      '--wdg-line': 'rgba(83,74,183,.30)', '--wdg-accent': '#7d73e0', '--wdg-on-accent': '#ffffff' } }
+      '--wdg-bg': '#f2efe8', '--wdg-bg2': '#fbf9f5', '--wdg-bg3': '#e9e4da',
+      '--wdg-text': '#191822', '--wdg-mute': '#656170',
+      '--wdg-line': 'rgba(75,63,114,.20)', '--wdg-accent': '#4b3f72', '--wdg-on-accent': '#ffffff' } }
   ]
 
-  var themeIndex = 0
+  /* Начинаем с «Синей с золотом» — это оформление, в котором виджет
+     действительно стоит у демонстрационного нотариуса. Раньше стартовала
+     «Тёмная» с холодным синим: он спорил с бумажной палитрой страницы
+     и обещал вид, которого покупатель на живом сайте не увидит.
+
+     Номер держим одной константой: начальное значение и вызов на старте
+     стояли в разных местах, и правка одного молча не меняла ничего. */
+  var INITIAL_THEME = 2
+  var themeIndex = INITIAL_THEME
 
   function applyTheme(i) {
     themeIndex = i
@@ -871,6 +884,6 @@
   renderPicker()
   renderCab(false)
   renderPanel()
-  applyTheme(0)
+  applyTheme(INITIAL_THEME)
   start()
 })()

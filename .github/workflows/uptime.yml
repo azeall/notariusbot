@@ -1,0 +1,110 @@
+# Внешняя проверка доступности сервиса.
+#
+# Присмотр в app/monitoring.py живёт на том же сервере и проверяет его изнутри.
+# Он не мог заметить поломку 2026-08-27: сервер был совершенно исправен,
+# а имя, по которому к нему обращались, резали провайдеры. Изнутри — здоровье,
+# снаружи — «не удаётся установить соединение», и сторож молчал. Молчание
+# при этом неотличимо от «всё хорошо».
+#
+# Отсюда правило: проверять надо оттуда же, откуда приходит посетитель.
+# Эта проверка идёт с машин GitHub — другая сеть, другой маршрут.
+#
+# Что нужно настроить один раз в настройках репозитория:
+#   секрет   ALERT_TELEGRAM_BOT_TOKEN — токен бота
+#   переменная ALERT_TELEGRAM_CHAT_ID — кому писать
+# Без них проверка работает и просто не шлёт сообщений: падать из-за
+# ненастроенного оповещения она не должна.
+
+name: Доступность сервиса
+
+on:
+  schedule:
+    # Раз в десять минут. Чаще нет смысла: GitHub всё равно запускает
+    # расписание с задержкой.
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+env:
+  HEALTH_URL: https://app.guidecode.ru/healthz
+  MARKER_TITLE: 'Сервис не отвечает снаружи'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Опросить сервис
+        id: probe
+        run: |
+          # Две попытки с паузой: одиночный сетевой сбой не должен поднимать
+          # тревогу, иначе её перестанут читать.
+          ok=no
+          detail=нет
+          for attempt in 1 2; do
+            if body=$(curl -sS --max-time 20 "$HEALTH_URL" 2>&1); then rc=0; else rc=$?; fi
+            if [ "$rc" = "0" ] && printf '%s' "$body" | grep -q '"status":"ok"'; then
+              ok=yes
+              break
+            fi
+            detail="попытка $attempt: код curl $rc, ответ: $(printf '%s' "$body" | head -c 200)"
+            echo "$detail"
+            [ "$attempt" = "1" ] && sleep 30
+          done
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+          echo "detail=$detail" >> "$GITHUB_OUTPUT"
+
+      - name: Найти отметку о текущей поломке
+        id: marker
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+            --search "\"$MARKER_TITLE\" in:title" --json number --jq '.[0].number // ""')
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      # Пишем на переходах состояния, а не каждые десять минут. Повторяющееся
+      # «всё плохо» перестают читать на второй час — и тогда оповещение
+      # не работает вовсе, хотя формально исправно. Состояние хранится открытой
+      # задачей: её видно в репозитории и она переживает перезапуск.
+      - name: Сообщить о поломке
+        if: steps.probe.outputs.ok == 'no' && steps.marker.outputs.number == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TELEGRAM_TOKEN: ${{ secrets.ALERT_TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT: ${{ vars.ALERT_TELEGRAM_CHAT_ID }}
+          DETAIL: ${{ steps.probe.outputs.detail }}
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "$MARKER_TITLE" \
+            --body "Проверка снаружи не получила ответа от $HEALTH_URL. $DETAIL. Задача закроется сама, когда сервис ответит."
+          if [ -n "$TELEGRAM_TOKEN" ] && [ -n "$TELEGRAM_CHAT" ]; then
+            curl -sS --max-time 20 -X POST \
+              "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
+              -d "chat_id=$TELEGRAM_CHAT" \
+              --data-urlencode "text=Сервис заявок не отвечает снаружи: $HEALTH_URL. $DETAIL. Изнутри сервер при этом может выглядеть исправным." >/dev/null
+          else
+            echo "Получатель оповещений не настроен — сообщение не отправлено."
+          fi
+
+      - name: Сообщить о восстановлении
+        if: steps.probe.outputs.ok == 'yes' && steps.marker.outputs.number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TELEGRAM_TOKEN: ${{ secrets.ALERT_TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT: ${{ vars.ALERT_TELEGRAM_CHAT_ID }}
+          NUMBER: ${{ steps.marker.outputs.number }}
+        run: |
+          gh issue close "$NUMBER" --repo "$GITHUB_REPOSITORY" \
+            --comment "Сервис снова отвечает снаружи."
+          if [ -n "$TELEGRAM_TOKEN" ] && [ -n "$TELEGRAM_CHAT" ]; then
+            curl -sS --max-time 20 -X POST \
+              "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage" \
+              -d "chat_id=$TELEGRAM_CHAT" \
+              --data-urlencode "text=Сервис заявок снова отвечает снаружи." >/dev/null
+          fi
+
+      - name: Завершить с ошибкой, если сервис молчит
+        if: steps.probe.outputs.ok == 'no'
+        run: exit 1
