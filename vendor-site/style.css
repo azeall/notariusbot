@@ -688,7 +688,13 @@ section { padding: var(--gap) clamp(20px, 5vw, 64px); }
 
 /* ════════════════ готовые сайты ════════════════ */
 
-.sites { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(248px, 1fr)); }
+.sites {
+  display: grid; gap: 20px;
+  /* 200px, а не 248: оформлений стало пять, и при прежнем минимуме пятая
+     плитка уходила на второй ряд одна. Пустой ряд рядом с одинокой карточкой
+     читается как «этот вариант не такой, как остальные». */
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
 
 .site {
   display: flex; flex-direction: column;
