@@ -8,8 +8,9 @@
 #   .\dev-db.ps1 start   — поднять базу (при первом запуске заводит кластер)
 #   .\dev-db.ps1 stop    — остановить
 #   .\dev-db.ps1 status  — жива ли
+#   .\dev-db.ps1 psql    — консоль базы под ролью приложения
 
-param([ValidateSet("start", "stop", "status")] [string]$Action = "start")
+param([ValidateSet("start", "stop", "status", "psql")] [string]$Action = "start")
 
 $ErrorActionPreference = "Stop"
 
@@ -41,6 +42,12 @@ switch ($Action) {
     }
     "stop" {
         & $pgctl -D $PgData -m fast stop
+        return
+    }
+    "psql" {
+        $env:PGPASSWORD = $AppPassword
+        try { & $psql -h 127.0.0.1 -p $Port -U $AppUser -d notarybot }
+        finally { Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue }
         return
     }
 }

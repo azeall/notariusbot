@@ -9,8 +9,8 @@ $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 
 Write-Host "1/3 База..." -ForegroundColor Cyan
-& "$root\pg.ps1" start
-& "$root\pg.ps1" status
+& "$root\dev-db.ps1" start
+& "$root\dev-db.ps1" status
 
 Write-Host "`n2/3 Сервис заявок на :8000..." -ForegroundColor Cyan
 Start-Process -FilePath "$root\.venv\Scripts\python.exe" `

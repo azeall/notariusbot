@@ -45,9 +45,18 @@ class MaxClient:
         self.token = token or settings.max_bot_token
         self.base_url = (base_url or settings.max_api_base).rstrip("/")
         # Токен только заголовком: передача через query в MAX отключена.
+        #
+        # trust_env=False — прокси берётся не из окружения машины. На машине
+        # разработчика системный прокси стоял socks4, и клиент вообще не
+        # создавался: httpx без дополнительного пакета такую схему не знает,
+        # и восемь тестов падали не из-за кода. Хуже другое: подхвати клиент
+        # чужой прокси молча — через него пошёл бы трафик бота вместе
+        # с токеном и данными клиентов нотариуса. Понадобится прокси —
+        # он задаётся здесь явно.
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(70.0),
             headers={"Authorization": self.token},
+            trust_env=False,
         )
 
     async def close(self) -> None:

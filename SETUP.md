@@ -7,8 +7,8 @@
 | Компонент | Версия | Где |
 |---|---|---|
 | Python | 3.12.10 | `%LOCALAPPDATA%\Programs\Python\Python312` |
-| PostgreSQL | 17.11 | `C:\Users\TRITON 700\pgsql` (портативная сборка) |
-| venv проекта | — | `C:\claude\.venv` |
+| PostgreSQL | 17.11 | `C:\claude\pgsql` (портативная сборка) |
+| venv проекта | — | `C:\claude\notariusbot\.venv` |
 
 PostgreSQL стоит **не как служба Windows**: установщик EDB требует прав администратора,
 а подтвердить UAC было некому. Вместо него распакованы официальные бинарники EDB —
@@ -29,16 +29,20 @@ PostgreSQL стоит **не как служба Windows**: установщик
 Запустить базу (нужно после каждой перезагрузки):
 
 ```powershell
-.\pg.ps1 start
+.\dev-db.ps1 start
 ```
 
 Проверить, остановить, зайти в консоль базы:
 
 ```powershell
-.\pg.ps1 status
-.\pg.ps1 stop
-.\pg.ps1 psql
+.\dev-db.ps1 status
+.\dev-db.ps1 stop
+.\dev-db.ps1 psql
 ```
+
+Скрипт сам заводит кластер, роль `notary` и базы `notarybot`
+и `notarybot_test`, если их ещё нет, и переживает повторный запуск.
+Пути к сборке и к данным — `C:\claude\pgsql` и `C:\claude\pgdata`.
 
 Активировать окружение Python:
 
@@ -74,7 +78,7 @@ PostgreSQL стоит **не как служба Windows**: установщик
 | Что | Зачем | Если потерять |
 |---|---|---|
 | `~/.ssh/notarybot_vps` | доступ к боевому серверу | доступ пропадёт, придётся заводить ключ заново через панель хостинга |
-| `C:\claude\.env` | секреты для местной разработки | не страшно: значения пересоздаются, боевые лежат на сервере отдельно |
+| `C:\claude\notariusbot\.env` | секреты для местной разработки | не страшно: значения пересоздаются, боевые лежат на сервере отдельно |
 
 Про `.env` без паники: он нужен только для работы на своём компьютере.
 Боевые секреты живут в `/opt/notarybot/.env` на сервере и от переезда
@@ -110,15 +114,14 @@ ssh-keygen -t ed25519 -f "$HOME/.ssh/notarybot_vps" -C "домашний ком�
 ### Порядок на новой машине
 
 ```powershell
-git clone https://github.com/azeall/notariusbot.git C:\claude
-cd C:\claude
+git clone https://github.com/azeall/notariusbot.git C:\claude\notariusbot
+cd C:\claude\notariusbot
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-Дальше — PostgreSQL: распаковать портативную сборку EDB в
-`%USERPROFILE%\pgsql`, поднять её через `.\pg.ps1 start` и создать базу
-и роль так, как описано выше. Затем `.env` по образцу:
+Дальше — PostgreSQL: распаковать портативную сборку EDB в `C:\claude\pgsql`
+и запустить `.\dev-db.ps1 start` — он сам заведёт кластер, роль и обе базы. Затем `.env` по образцу:
 
 ```
 DATABASE_URL=postgresql+asyncpg://notary:notarybot_dev@127.0.0.1:5432/notarybot

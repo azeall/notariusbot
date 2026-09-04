@@ -42,7 +42,9 @@ async def _send(chat_id: str, text: str) -> bool:
     if not token:
         return False
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        # trust_env=False по той же причине, что и в клиенте MAX: прокси
+        # машины не должен молча оказаться на пути уведомлений с данными заявки.
+        async with httpx.AsyncClient(timeout=10.0, trust_env=False) as client:
             response = await client.post(
                 f"{TELEGRAM_API}/bot{token}/sendMessage",
                 json={"chat_id": chat_id, "text": text, "disable_web_page_preview": True},

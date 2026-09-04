@@ -145,3 +145,16 @@ async def test_server_error_is_raised():
     with pytest.raises(httpx.HTTPStatusError):
         await client.updates()
     await client.close()
+
+
+def test_client_does_not_take_proxy_from_the_machine():
+    """Клиент не подхватывает прокси из окружения машины.
+
+    На домашней машине системным прокси стоял socks4, и клиент не создавался
+    вовсе: httpx такой схемы не знает без отдельного пакета. Восемь тестов
+    падали, не дойдя до кода. Но опаснее обратное — если бы схема была
+    поддержана: трафик бота вместе с токеном и данными клиентов нотариуса
+    молча пошёл бы через чужой прокси.
+    """
+    client = MaxClient(token="test-token", base_url="https://platform-api.example")
+    assert client._client.trust_env is False

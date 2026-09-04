@@ -62,7 +62,9 @@ class Check:
 async def check_web() -> Check:
     url = get_settings().public_base_url.rstrip("/") + "/healthz"
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        # trust_env=False: проверка должна ходить на боевой адрес напрямую,
+        # иначе прокси машины покажет «сайт жив», когда он лежит.
+        async with httpx.AsyncClient(timeout=10.0, trust_env=False) as client:
             response = await client.get(url)
         if response.status_code == 200:
             return Check("Сайт", True, "отвечает")
