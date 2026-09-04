@@ -24,11 +24,25 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
+    # Схема API открыта только вне боевого. На боевом /docs, /redoc и
+    # /openapi.json отдавали 200 без входа и показывали все 57 эндпоинтов
+    # вместе со схемами данных — включая /platform/tenants/{id}/delete,
+    # выдачу приглашений и работу с заявками. Сами маршруты закрыты (401),
+    # но карта раздавалась желающим бесплатно.
+    #
+    # Признак боевого — https в публичном адресе: там же, откуда берётся
+    # флаг secure у кук, чтобы не заводить второй переключатель, который
+    # однажды забудут переставить.
+    is_production = get_settings().public_base_url.startswith("https://")
+
     app = FastAPI(
         title="Нотариус: заявки",
         description="Приём заявок нотариуса: виджет на сайт, перечни документов, запись на приём",
         version="0.1.0",
         lifespan=lifespan,
+        docs_url=None if is_production else "/docs",
+        redoc_url=None if is_production else "/redoc",
+        openapi_url=None if is_production else "/openapi.json",
     )
 
     # Публичное API виджета читают со страниц нотариусов. Куки в нём не участвуют,

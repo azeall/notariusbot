@@ -127,3 +127,30 @@ async def test_privacy_page_states_retention_in_days(http, tenant):
 
     response = await http.get(f"/{tenant.slug}/privacy")
     assert f"через {get_settings().document_retention_days} дней после закрытия" in response.text
+
+
+async def test_api_schema_is_closed_in_production(monkeypatch):
+    """На боевом /docs, /redoc и /openapi.json не отдаются.
+
+    Они показывали все 57 эндпоинтов вместе со схемами данных — включая
+    удаление конторы, выдачу приглашений и работу с заявками. Маршруты
+    защищены входом, но карта раздавалась без него: нападающему оставалось
+    подбирать пароль, а не изучать сервис.
+
+    Признак боевого — https в публичном адресе, тот же, по которому куки
+    получают флаг secure. Второй переключатель однажды забыли бы переставить.
+    """
+    from app.config import get_settings
+    from app.web.main import create_app
+
+    settings = get_settings()
+
+    monkeypatch.setattr(settings, "public_base_url", "https://app.example.ru", raising=False)
+    production = create_app()
+    assert production.docs_url is None
+    assert production.redoc_url is None
+    assert production.openapi_url is None
+
+    monkeypatch.setattr(settings, "public_base_url", "http://127.0.0.1:8000", raising=False)
+    local = create_app()
+    assert local.docs_url == "/docs", "на разработке схема нужна"
