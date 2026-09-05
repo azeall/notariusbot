@@ -154,3 +154,43 @@ async def test_api_schema_is_closed_in_production(monkeypatch):
     monkeypatch.setattr(settings, "public_base_url", "http://127.0.0.1:8000", raising=False)
     local = create_app()
     assert local.docs_url == "/docs", "на разработке схема нужна"
+
+
+async def test_privacy_page_explains_what_happens_after_a_leak(http, tenant):
+    """На странице есть порядок действий при утечке и сроки 24/72 часа.
+
+    Статья 21.1 152-ФЗ (внесена 420-ФЗ, действует с 30.05.2025) даёт оператору
+    сутки на уведомление Роскомнадзора и трое — на результаты расследования.
+    Обязанность нотариуса, а обнаруживает утечку сервис: если он не обязался
+    известить немедленно, нотариус пропустит срок не по своей вине.
+    """
+    body = (await http.get(f"/{tenant.slug}/privacy")).text
+
+    assert "21.1" in body
+    assert "24 часов" in body
+    assert "72 часов" in body
+    assert "Роскомнадзор" in body
+    assert "немедленно" in body
+
+
+async def test_privacy_page_says_where_the_data_lies(http, tenant):
+    """Сказано, что данные не уходят за границу.
+
+    Трансграничная передача (ст. 12) требует отдельного согласия и уведомления
+    Роскомнадзора. Молчание об этом читается проверяющим не в пользу оператора,
+    а клиент по молчанию не может понять, где его паспорт.
+    """
+    body = (await http.get(f"/{tenant.slug}/privacy")).text
+
+    assert "в Российской Федерации" in body
+    assert "трансграничной передачи нет" in body.lower()
+
+
+def test_policy_version_moves_without_dragging_consent_along():
+    """Правка политики не поднимает версию согласия.
+
+    В базе хранится версия текста согласия. Поднять её без изменения текста —
+    значит сослать старые записи на редакцию, которой человек не видел.
+    """
+    assert legal.POLICY_VERSION != legal.CONSENT_VERSION
+    assert legal.CONSENT_VERSION == "2026-08-26"

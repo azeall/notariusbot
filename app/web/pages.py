@@ -59,6 +59,8 @@ async def privacy_page(http_request: HttpRequest, tenant: Tenant = Depends(resol
             "operator": legal.Operator.of(tenant),
             "purposes": legal.PROCESSING_PURPOSES,
             "collected": legal.PERSONAL_DATA_COLLECTED,
+            "incident_procedure": legal.INCIDENT_PROCEDURE,
+            "data_location": legal.DATA_LOCATION,
             "consent_text": legal.consent_text(tenant),
             "consent_version": legal.CONSENT_VERSION,
             "policy_version": legal.POLICY_VERSION,
