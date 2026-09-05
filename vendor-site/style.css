@@ -613,6 +613,10 @@ section { padding: var(--gap) clamp(20px, 5vw, 64px); }
 /* ════════════════ низ ════════════════ */
 
 .fineprint { color: var(--muted); font-size: 0.8125rem; max-width: 44em; margin-top: 40px; line-height: 1.55; }
+/* Ссылки в сносках подчёркиваются: глобальное правило `a { color: inherit }`
+   оставляет их неотличимыми от текста, и ссылка на оферту читается
+   как обычные слова. */
+.fineprint a { text-decoration: underline; text-underline-offset: 2px; }
 
 .tail { max-width: 1400px; margin: 0 auto; border-top: 1px solid var(--line); }
 .tail h2 { max-width: 12em; }

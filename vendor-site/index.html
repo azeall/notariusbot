@@ -343,6 +343,11 @@
       обычно это 1 000–2 000 ₽ в год за домен. Сервер приёма заявок при желании
       переоформляется на вас.
     </p>
+    <p class="fineprint">
+      Условия работы описаны в <a href="oferta.html">публичной оферте</a>:
+      договор считается заключённым с момента оплаты счёта. Отказаться можно
+      в любой момент — <a href="vozvrat.html">как считается возврат</a>.
+    </p>
   </div>
 </section>
 
@@ -448,9 +453,10 @@
 <footer class="foot">
   <span>нотариус·бот</span>
   <span class="muted">Сайт и приём заявок для тех, кто работает с документами</span>
-  <!-- Правовые документы и реквизиты появляются, когда заполнен legal.js:
-       ссылка на оферту, которой нет, хуже отсутствия ссылки. -->
-  <span class="foot-legal" data-legal-links hidden>
+  <!-- Ссылки на оферту и правила отказа стоят всегда: без них покупателю
+       нечего принять, а проверяющий видит сайт, продающий услуги без договора.
+       Строка с реквизитами появляется, когда заполнен legal.js. -->
+  <span class="foot-legal">
     <a class="foot-in" href="oferta.html">Публичная оферта</a>
     <a class="foot-in" href="vozvrat.html">Отказ и возврат</a>
   </span>
@@ -473,8 +479,6 @@
     // что публиковать нечего: ни ссылок, ни строки с реквизитами.
     var legal = window.LEGAL || {};
     if (legal.inn) {
-      var links = document.querySelector("[data-legal-links]");
-      if (links) links.hidden = false;
       var req = document.querySelector("[data-legal-req]");
       if (req) {
         req.textContent = [legal.status, legal.name, "ИНН " + legal.inn]

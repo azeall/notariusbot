@@ -20,7 +20,7 @@
   <a class="btn small" href="index.html#price">Цены</a>
 </header>
 
-<main class="doc" id="doc" hidden>
+<main class="doc" id="doc">
   <h1>Отказ от услуги и возврат оплаты</h1>
   <p class="doc-meta">
     Приложение к <a href="oferta.html">публичной оферте</a>.
@@ -87,20 +87,11 @@
   </p>
 
   <dl>
-    <dt>Исполнитель</dt><dd><span data-legal="status"></span> <span data-legal="name"></span></dd>
-    <dt>ИНН</dt><dd data-legal="inn"></dd>
+    <div data-legal-block="name" style="display: contents"><dt>Исполнитель</dt><dd><span data-legal="status"></span> <span data-legal="name"></span></dd></div>
+    <div data-legal-block="inn" style="display: contents"><dt>ИНН</dt><dd data-legal="inn"></dd></div>
     <dt>Почта</dt><dd data-legal="email"></dd>
   </dl>
 
-  <a class="doc-back" href="index.html">← На главную</a>
-</main>
-
-<main class="doc doc-unpublished" id="draft">
-  <h1>Документ готовится</h1>
-  <p>
-    Правила отказа появятся здесь вместе с публичной офертой — как только
-    будут указаны реквизиты исполнителя.
-  </p>
   <a class="doc-back" href="index.html">← На главную</a>
 </main>
 

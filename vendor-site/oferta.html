@@ -20,7 +20,7 @@
   <a class="btn small" href="index.html#price">Цены</a>
 </header>
 
-<main class="doc" id="doc" hidden>
+<main class="doc" id="doc">
   <h1>Публичная оферта</h1>
   <p class="doc-meta">
     Предложение заключить договор возмездного оказания услуг.
@@ -28,11 +28,17 @@
   </p>
 
   <h2><span>01</span>Кто предлагает</h2>
-  <p>
+  <p data-legal-named hidden>
     <span data-legal="status"></span> <span data-legal="name"></span>,
     ИНН <span data-legal="inn"></span><span data-legal-block="ogrn">, ОГРН(ИП)
     <span data-legal="ogrn"></span></span> — далее Исполнитель — публикует
     настоящее предложение любому лицу, готовому его принять.
+  </p>
+  <p data-legal-unnamed>
+    Разработчик и правообладатель сервиса «нотариус·бот» — далее Исполнитель —
+    публикует настоящее предложение любому лицу, готовому его принять.
+    Связь с Исполнителем: <span data-legal="email"></span>. Полные реквизиты
+    Исполнителя указываются в счёте, который является частью договора.
   </p>
   <p>
     Документ является публичной офертой по смыслу пункта 2 статьи 437
@@ -136,25 +142,19 @@
   </p>
 
   <h2><span>10</span>Реквизиты Исполнителя</h2>
+  <p data-legal-unnamed>
+    Сведения об Исполнителе — наименование, ИНН и адрес — указываются в счёте
+    и в акте об оказанных услугах. По запросу они направляются до оплаты.
+  </p>
   <dl>
-    <dt>Исполнитель</dt><dd><span data-legal="status"></span> <span data-legal="name"></span></dd>
-    <dt>ИНН</dt><dd data-legal="inn"></dd>
+    <div data-legal-block="name" style="display: contents"><dt>Исполнитель</dt><dd><span data-legal="status"></span> <span data-legal="name"></span></dd></div>
+    <div data-legal-block="inn" style="display: contents"><dt>ИНН</dt><dd data-legal="inn"></dd></div>
     <div data-legal-block="ogrn" style="display: contents"><dt>ОГРН(ИП)</dt><dd data-legal="ogrn"></dd></div>
     <div data-legal-block="address" style="display: contents"><dt>Адрес</dt><dd data-legal="address"></dd></div>
     <dt>Почта</dt><dd data-legal="email"></dd>
     <div data-legal-block="phone" style="display: contents"><dt>Телефон</dt><dd data-legal="phone"></dd></div>
   </dl>
 
-  <a class="doc-back" href="index.html">← На главную</a>
-</main>
-
-<main class="doc doc-unpublished" id="draft">
-  <h1>Документ готовится</h1>
-  <p>
-    Публичная оферта появится здесь, как только будут указаны реквизиты
-    исполнителя. Пока их нет, публиковать документ нельзя: договор без ИНН
-    стороны не заключают.
-  </p>
   <a class="doc-back" href="index.html">← На главную</a>
 </main>
 
