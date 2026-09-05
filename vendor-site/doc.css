@@ -1,0 +1,48 @@
+/* Оформление правовых страниц витрины: оферта и правила отказа.
+
+   Отдельный файл, а не строки в style.css: эти страницы читают иначе, чем
+   продающую, — подряд и до конца, поэтому им нужна колонка поуже, крупный
+   межстрочный интервал и заметная нумерация пунктов. В style.css такого
+   набора нет, а тянуть туда типографику документа — значит утяжелять
+   главную страницу ради двух других. */
+
+.doc {
+  max-width: 46em;
+  margin: 0 auto;
+  padding: clamp(28px, 5vw, 56px) clamp(20px, 5vw, 40px) 96px;
+}
+.doc h1 { font-size: clamp(1.5rem, 3.4vw, 2.125rem); line-height: 1.2; margin: 0 0 10px; }
+.doc .doc-meta { color: var(--muted); font-size: 0.9375rem; margin: 0 0 34px; }
+.doc h2 {
+  font-size: 1.0625rem;
+  margin: 38px 0 12px;
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+}
+.doc h2 span {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+.doc p, .doc li { font-size: 1rem; line-height: 1.65; }
+.doc ul, .doc ol { padding-left: 22px; }
+.doc li { margin: 6px 0; }
+.doc dl {
+  display: grid;
+  grid-template-columns: minmax(9em, auto) 1fr;
+  gap: 8px 20px;
+  margin: 18px 0 0;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: 0.9375rem;
+}
+.doc dt { color: var(--muted); }
+.doc dd { margin: 0; }
+.doc .doc-back { display: inline-block; margin-top: 40px; font-size: 0.9375rem; }
+
+/* Пока реквизиты не заполнены, документ не показывается: страница
+   с прочерками вместо ИНН хуже, чем её отсутствие. */
+.doc-unpublished { color: var(--muted); }

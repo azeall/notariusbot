@@ -10,6 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <script src="config.js"></script>
+<script src="legal.js"></script>
 </head>
 <body>
 
@@ -447,6 +448,13 @@
 <footer class="foot">
   <span>нотариус·бот</span>
   <span class="muted">Сайт и приём заявок для тех, кто работает с документами</span>
+  <!-- Правовые документы и реквизиты появляются, когда заполнен legal.js:
+       ссылка на оферту, которой нет, хуже отсутствия ссылки. -->
+  <span class="foot-legal" data-legal-links hidden>
+    <a class="foot-in" href="oferta.html">Публичная оферта</a>
+    <a class="foot-in" href="vozvrat.html">Отказ и возврат</a>
+  </span>
+  <span class="foot-in muted" data-legal-req hidden></span>
   <a class="foot-in" data-service-link="/platform/login">Вход для владельца сервиса</a>
 </footer>
 
@@ -459,6 +467,20 @@
     var links = document.querySelectorAll("[data-service-link]");
     for (var i = 0; i < links.length; i++) {
       links[i].href = base + links[i].getAttribute("data-service-link");
+    }
+
+    // Реквизиты и правовые документы — из legal.js. Пустой ИНН значит,
+    // что публиковать нечего: ни ссылок, ни строки с реквизитами.
+    var legal = window.LEGAL || {};
+    if (legal.inn) {
+      var links = document.querySelector("[data-legal-links]");
+      if (links) links.hidden = false;
+      var req = document.querySelector("[data-legal-req]");
+      if (req) {
+        req.textContent = [legal.status, legal.name, "ИНН " + legal.inn]
+          .filter(Boolean).join(", ");
+        req.hidden = false;
+      }
     }
 
     // Цены — из prices.js, чтобы правились в одном месте.
