@@ -194,3 +194,25 @@ def test_policy_version_moves_without_dragging_consent_along():
     """
     assert legal.POLICY_VERSION != legal.CONSENT_VERSION
     assert legal.CONSENT_VERSION == "2026-08-26"
+
+
+async def test_privacy_page_speaks_about_cookies(http, tenant):
+    """Сказано, что форма заявки не ставит cookie.
+
+    Проверяющие ищут этот раздел в первую очередь, а клиент по молчанию
+    вправе предположить худшее. Утверждение проверяемое: на страницах виджета
+    и политики сервер не отдаёт ни одного Set-Cookie, они появляются только
+    после входа сотрудника.
+    """
+    body = (await http.get(f"/{tenant.slug}/privacy")).text
+
+    assert "cookie" in body.lower()
+    assert "не использует" in body
+
+
+async def test_widget_sets_no_cookies(http, tenant):
+    """Страница виджета не ставит cookie — то, что обещано в политике."""
+    response = await http.get(f"/widget/{tenant.slug}")
+
+    assert response.status_code == 200
+    assert "set-cookie" not in {k.lower() for k in response.headers}

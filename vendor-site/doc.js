@@ -14,10 +14,23 @@
 (function () {
   var legal = window.LEGAL || {};
 
+  // Значения продублированы в разметке: правовой документ обязан читаться
+  // без JavaScript — и человеком с отключёнными скриптами, и проверяющим
+  // роботом, который скрипты не исполняет. Источником правды остаётся
+  // legal.js: он побеждает при расхождении и сообщает о нём в консоль,
+  // чтобы две копии не разъехались молча.
   var slots = document.querySelectorAll("[data-legal]");
   for (var i = 0; i < slots.length; i++) {
     var key = slots[i].getAttribute("data-legal");
-    slots[i].textContent = legal[key] || "";
+    var value = legal[key] || "";
+    var written = slots[i].textContent.trim();
+    if (written && value && written !== value) {
+      if (window.console && console.warn) {
+        console.warn("legal.js и разметка разошлись в поле " + key +
+          ": в разметке «" + written + "», в legal.js «" + value + "»");
+      }
+    }
+    if (value) slots[i].textContent = value;
   }
 
   // Строки, которых может не быть: статус, ФИО, ИНН, ОГРН, адрес, телефон.

@@ -460,7 +460,7 @@
     <a class="foot-in" href="oferta.html">Публичная оферта</a>
     <a class="foot-in" href="vozvrat.html">Отказ и возврат</a>
   </span>
-  <span class="foot-in muted" data-legal-req hidden></span>
+  <span class="foot-in muted" data-legal-req>ИНН 772594573137</span>
   <a class="foot-in" data-service-link="/platform/login">Вход для владельца сервиса</a>
 </footer>
 
@@ -485,6 +485,10 @@
           .filter(Boolean).join(", ");
         req.hidden = false;
       }
+    } else {
+      // ИНН убрали из legal.js — убираем и из подвала, где он записан копией.
+      var empty = document.querySelector("[data-legal-req]");
+      if (empty) empty.hidden = true;
     }
 
     // Цены — из prices.js, чтобы правились в одном месте.
