@@ -30,5 +30,37 @@
         }
       ]
     }
+  ],
+  "redirects": [
+    {
+      "source": "/privacy",
+      "destination": "/politika.html",
+      "permanent": false
+    },
+    {
+      "source": "/policy",
+      "destination": "/politika.html",
+      "permanent": false
+    },
+    {
+      "source": "/politika",
+      "destination": "/politika.html",
+      "permanent": false
+    },
+    {
+      "source": "/oferta",
+      "destination": "/oferta.html",
+      "permanent": false
+    },
+    {
+      "source": "/offer",
+      "destination": "/oferta.html",
+      "permanent": false
+    },
+    {
+      "source": "/vozvrat",
+      "destination": "/vozvrat.html",
+      "permanent": false
+    }
   ]
 }
