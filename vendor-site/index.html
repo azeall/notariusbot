@@ -482,7 +482,9 @@
     if (legal.inn) {
       var req = document.querySelector("[data-legal-req]");
       if (req) {
-        req.textContent = [legal.status, legal.name, "ИНН " + legal.inn]
+        // В подвале только имя и ИНН: полный статус со скобками занимает
+        // строку целиком, а читают его в оферте, а не здесь.
+        req.textContent = [legal.name, "ИНН " + legal.inn]
           .filter(Boolean).join(", ");
         req.hidden = false;
       }
