@@ -18,6 +18,7 @@ TEMPLATES = Jinja2Templates(directory=str(WEB_DIR / "templates"))
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    settings.validate_production()
     settings.storage_dir.mkdir(parents=True, exist_ok=True)
     yield
     await dispose_engine()
@@ -30,10 +31,9 @@ def create_app() -> FastAPI:
     # выдачу приглашений и работу с заявками. Сами маршруты закрыты (401),
     # но карта раздавалась желающим бесплатно.
     #
-    # Признак боевого — https в публичном адресе: там же, откуда берётся
-    # флаг secure у кук, чтобы не заводить второй переключатель, который
-    # однажды забудут переставить.
-    is_production = get_settings().public_base_url.startswith("https://")
+    # Разработка — только HTTP на loopback; публичный адрес требует боевых
+    # настроек, даже если в нём ошибочно указали HTTP вместо HTTPS.
+    is_production = get_settings().is_production
 
     app = FastAPI(
         title="Нотариус: заявки",

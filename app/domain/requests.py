@@ -1,4 +1,5 @@
 import uuid
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select, update
@@ -70,6 +71,7 @@ async def create_request(
         service_title=service.title,
         submission_mode=service.submission_mode,
         checklist=service.checklist_snapshot(),
+        consent_receipt=deepcopy(client.consent_receipt or {}),
         status=RequestStatus.NEW,
         channel=channel,
         client_comment=client_comment,

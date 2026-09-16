@@ -1,5 +1,8 @@
 from functools import lru_cache
+from ipaddress import ip_address
 from pathlib import Path
+import re
+from urllib.parse import urlsplit
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -99,10 +102,52 @@ class Settings(BaseSettings):
 
 
     @property
+    def is_production(self) -> bool:
+        try:
+            url = urlsplit(self.public_base_url)
+            host = url.hostname or ""
+            if url.scheme != "http":
+                return True
+            if host == "localhost":
+                return False
+            return not ip_address(host).is_loopback
+        except ValueError:
+            # Public hostnames and malformed URLs must not enable dev defaults.
+            return True
+
+    def validate_production(self) -> None:
+        try:
+            url = urlsplit(self.public_base_url)
+            if url.scheme not in {"http", "https"} or not url.hostname:
+                raise ValueError
+            _ = url.port
+        except ValueError:
+            raise RuntimeError("PUBLIC_BASE_URL must be a valid HTTP(S) URL") from None
+        if not self.is_production:
+            return
+        if url.scheme != "https":
+            raise RuntimeError("Public production requires HTTPS in PUBLIC_BASE_URL")
+        if not self.use_secure_cookies:
+            raise RuntimeError("Production requires COOKIES_SECURE=true (or unset with HTTPS)")
+        for name in ("session_secret", "document_encryption_key"):
+            value = getattr(self, name)
+            if (
+                len(value) < 32
+                or value != value.strip()
+                or len(set(value)) < 12
+                or value.lower().startswith("dev-only")
+                or re.fullmatch(r"(.+?)\1+", value)
+            ):
+                raise RuntimeError(
+                    f"Production requires a strong {name.upper()}: "
+                    "use at least 32 randomly generated characters, not development defaults"
+                )
+
+    @property
     def use_secure_cookies(self) -> bool:
         if self.cookies_secure is not None:
             return self.cookies_secure
-        return self.public_base_url.startswith("https://")
+        return urlsplit(self.public_base_url).scheme == "https"
 
 
 @lru_cache

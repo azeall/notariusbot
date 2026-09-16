@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Request as HttpRequest
 from fastapi.responses import HTMLResponse, Response
 
 from app import legal
+from app.domain.consent import consent_fingerprint
 from app.config import get_settings
 from app.domain.theme import build_palette, palette_css
 from app.models import Tenant
@@ -24,6 +25,9 @@ async def widget_page(http_request: HttpRequest, tenant: Tenant = Depends(resolv
             "tenant": tenant,
             "api_base": f"/api/v1/{tenant.slug}",
             "privacy_url": f"/{tenant.slug}/privacy",
+            "consent_version": legal.CONSENT_VERSION,
+            "consent_text": legal.consent_text(tenant),
+            "consent_fingerprint": consent_fingerprint(tenant),
             "palette_css": palette_css(palette),
         },
     )
@@ -169,6 +173,9 @@ _EMBED_TEMPLATE = """
   var failTimer = null;
 
   window.addEventListener("message", function (event) {
+    var expectedOrigin;
+    try { expectedOrigin = new URL(BASE).origin; } catch (e) { return; }
+    if (event.origin !== expectedOrigin || event.source !== frame.contentWindow) return;
     var data = event.data;
     if (!data || data.source !== "notarybot" || data.type !== "ready") return;
     ready = true;

@@ -8,13 +8,14 @@
 """
 
 import logging
+from urllib.parse import urlsplit
 
 import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.models import Channel, Client, Request, Staff, SubmissionMode
+from app.models import Channel, Client, Request, Staff
 
 log = logging.getLogger(__name__)
 
@@ -22,18 +23,17 @@ TELEGRAM_API = "https://api.telegram.org"
 
 
 def render_new_request(request: Request, client_name: str, client_phone: str) -> str:
-    lines = [
-        f"Новая заявка № {request.public_number}",
-        request.service_title,
-        "",
-        f"{client_name} · {client_phone}",
-    ]
-    if request.submission_mode is SubmissionMode.VISIT and request.preferred_time_note:
-        lines.append(f"Приём: {request.preferred_time_note}")
-    elif request.submission_mode is SubmissionMode.DOCUMENTS:
-        lines.append("Клиент присылает документы онлайн")
-    if request.client_comment:
-        lines.append(f"Комментарий: {request.client_comment}")
+    # Аргументы клиента сохранены для совместимости вызывающего кода.
+    # В Telegram уходит только номер; подробности доступны после входа.
+    lines = [f"Новая заявка № {request.public_number}"]
+    base = get_settings().public_base_url.rstrip("/")
+    url = urlsplit(base)
+    if url.scheme in {"https", "http"} and url.hostname and not (
+        url.username or url.password or url.query or url.fragment
+    ):
+        lines.append(f"Кабинет (требуется вход): {base}/staff")
+    else:
+        lines.append("Откройте кабинет по обычному адресу и войдите в него.")
     return "\n".join(lines)
 
 

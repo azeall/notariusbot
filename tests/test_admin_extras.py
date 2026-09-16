@@ -211,9 +211,11 @@ async def test_notification_text_has_the_essentials(session, tenant, client, ser
 
     text = render_new_request(request, "Смирнов Алексей", "+79990000001")
     assert f"№ {request.public_number}" in text
-    assert service.title in text
-    assert "+79990000001" in text
-    assert "срочно" in text
+    assert service.title not in text
+    assert "+79990000001" not in text
+    assert "срочно" not in text
+    assert "Смирнов Алексей" not in text
+    assert "/staff" in text
 
 
 async def test_only_active_staff_receive(session, tenant, employee):

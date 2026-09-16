@@ -60,10 +60,10 @@ def confirm_keyboard(service_id: uuid.UUID) -> InlineKeyboardMarkup:
     )
 
 
-def consent_keyboard() -> InlineKeyboardMarkup:
+def consent_keyboard(fingerprint: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Согласен", callback_data="consent:yes")],
+            [InlineKeyboardButton(text="Согласен", callback_data=f"consent:yes:{fingerprint[:32]}")],
             [InlineKeyboardButton(text="Отказаться", callback_data="consent:no")],
         ]
     )
@@ -337,10 +337,20 @@ async def _accept_phone(message: Message, state: FSMContext, raw: str) -> None:
 
     draft = await _draft(state)
     draft.phone = raw.strip()[:32]
+    async with get_sessionmaker()() as session:
+        tenant = await _tenant(session, draft)
+        if tenant is None:
+            await message.answer("Нотариус не найден. Нажмите /start, чтобы начать заново.")
+            return
+        text = flow.prepare_consent(tenant, draft)
+    await _drop_reply_keyboard(message)
+    # Кнопка доступна только после отправки полного текста, включая длинные реквизиты.
+    for offset in range(0, len(text) - 2000, 2000):
+        await message.answer(text[offset:offset + 2000], parse_mode=None)
+    final_offset = ((len(text) - 1) // 2000) * 2000
+    await _prompt(message, state, text[final_offset:], consent_keyboard(draft.extra["consent_fingerprint"]))
     await _save(state, draft)
     await state.set_state(Talk.giving_consent)
-    await _drop_reply_keyboard(message)
-    await _prompt(message, state, flow.ask_consent(draft.tenant_slug), consent_keyboard())
 
 
 @dispatcher.callback_query(F.data == "consent:no")
@@ -354,10 +364,14 @@ async def consent_declined(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
 
 
-@dispatcher.callback_query(F.data == "consent:yes")
+@dispatcher.callback_query(Talk.giving_consent, F.data.startswith("consent:yes:"))
 async def consent_given(callback: CallbackQuery, state: FSMContext) -> None:
     draft = await _draft(state)
-    draft.consent = True
+    try:
+        flow.accept_consent(draft, callback.data.split(":", 2)[2])
+    except flow.FlowError as exc:
+        await callback.answer(str(exc), show_alert=True)
+        return
     await _save(state, draft)
 
     async with get_sessionmaker()() as session:

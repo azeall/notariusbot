@@ -45,6 +45,11 @@ class Request(Base, UUIDPrimaryKey, TenantScoped, Timestamps):
     )
     # Перечень документов ровно в том виде, в каком его увидел клиент.
     checklist: Mapped[list[dict]] = mapped_column(JSONB, default=list, nullable=False)
+    # Снимок принятого согласия не меняется вместе с карточкой клиента/нотариуса.
+    # Пустой объект у старых заявок означает отсутствие сохранённого снимка.
+    consent_receipt: Mapped[dict] = mapped_column(
+        JSONB, default=dict, nullable=False, server_default="{}"
+    )
 
     # Номера пунктов перечня, которые сотрудник отметил полученными.
     #

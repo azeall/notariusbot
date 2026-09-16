@@ -7,11 +7,13 @@
 
 import httpx
 import pytest
+from hashlib import sha256
+from app.models import Channel, Client, Tenant
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app import legal
 from app.channels import flow
-from app.web import widget as widget_api
+from app.domain.consent import record_consent
 from app.web.deps import db_session
 from app.web.main import app
 
@@ -37,16 +39,22 @@ async def http(engine, session):
     app.dependency_overrides.clear()
 
 
-def test_consent_version_is_declared_once():
-    """Версия согласия одна на все каналы.
+def test_recorded_consent_keeps_text_version_and_operator_snapshot():
+    tenant = Tenant(slug="ivanov", display_name="Нотариус Иванов", city="Москва",
+                    address="Тестовая, 1", phone="+79990000000")
+    client = Client(channel=Channel.WIDGET)
+    expected = legal.consent_text(tenant)
+    record_consent(client, tenant)
+    tenant.display_name = "Другой нотариус"
+    tenant.address = "Другой адрес"
 
-    Строка была объявлена дважды — в виджете и в разговоре мессенджеров. Правка
-    одного места молча расходилась со вторым, и запись в базе начинала ссылаться
-    на версию, которой человек не видел. Доказать, на что он согласился, после
-    этого нечем.
-    """
-    assert widget_api.CONSENT_VERSION is legal.CONSENT_VERSION
-    assert flow.CONSENT_VERSION is legal.CONSENT_VERSION
+    assert client.consent_text_version == legal.CONSENT_VERSION
+    assert client.consent_receipt["version"] == legal.CONSENT_VERSION
+    assert client.consent_receipt["text"] == expected
+    assert client.consent_receipt["operator"]["name"] == "Нотариус Иванов"
+    assert client.consent_receipt["operator"]["address"] == "Москва, Тестовая, 1"
+    assert client.consent_receipt["accepted_at"] == client.consent_given_at.isoformat()
+    assert client.consent_receipt["channel"] == Channel.WIDGET.value
 
 
 def test_consent_names_the_notary_as_operator(tenant):
@@ -159,14 +167,16 @@ async def test_api_schema_is_closed_in_production(monkeypatch):
 async def test_privacy_page_explains_what_happens_after_a_leak(http, tenant):
     """На странице есть порядок действий при утечке и сроки 24/72 часа.
 
-    Статья 21.1 152-ФЗ (внесена 420-ФЗ, действует с 30.05.2025) даёт оператору
+    Часть 3.1 статьи 21 152-ФЗ (введена 266-ФЗ от 14.07.2022) даёт оператору
     сутки на уведомление Роскомнадзора и трое — на результаты расследования.
     Обязанность нотариуса, а обнаруживает утечку сервис: если он не обязался
     известить немедленно, нотариус пропустит срок не по своей вине.
     """
     body = (await http.get(f"/{tenant.slug}/privacy")).text
 
-    assert "21.1" in body
+    assert "частью 3.1 статьи 21" in body
+    assert "266-ФЗ" in body
+    assert "420-ФЗ" not in body
     assert "24 часов" in body
     assert "72 часов" in body
     assert "Роскомнадзор" in body
@@ -174,26 +184,74 @@ async def test_privacy_page_explains_what_happens_after_a_leak(http, tenant):
 
 
 async def test_privacy_page_says_where_the_data_lies(http, tenant):
-    """Сказано, что данные не уходят за границу.
-
-    Трансграничная передача (ст. 12) требует отдельного согласия и уведомления
-    Роскомнадзора. Молчание об этом читается проверяющим не в пользу оператора,
-    а клиент по молчанию не может понять, где его паспорт.
-    """
+    """Нет неподтверждённого обещания отсутствия внешней передачи."""
     body = (await http.get(f"/{tenant.slug}/privacy")).text
 
     assert "в Российской Федерации" in body
-    assert "трансграничной передачи нет" in body.lower()
+    assert "трансграничной передачи нет" not in body.lower()
+    assert "Telegram" in body
+    assert "Vercel" in body
 
 
-def test_policy_version_moves_without_dragging_consent_along():
-    """Правка политики не поднимает версию согласия.
+def test_changed_consent_has_new_version_and_legacy_template_is_unchanged(monkeypatch):
+    tenant = Tenant(slug="archive-check", display_name="Нотариус Тест", city="Москва",
+                    address="Тестовая, 1", phone="+79990000000")
+    assert legal.CONSENT_VERSION == "2026-09-16"
+    old = legal.consent_text(tenant, version="2026-08-26")
+    assert sha256(old.encode()).hexdigest() == "696142d19d4b5d9a451a786334fd7f82729dc1abb50747de1f073dc3dd90cb6e"
+    monkeypatch.setattr(legal, "PERSONAL_DATA_COLLECTED", ("changed",))
+    monkeypatch.setattr(legal, "PROCESSING_PURPOSES", ("changed",))
+    monkeypatch.setattr(legal, "PROCESSING_ACTIONS", ("changed",))
+    monkeypatch.setattr(legal.Operator, "of", lambda tenant: None)
+    assert legal.consent_text(tenant, version="2026-08-26") == old
 
-    В базе хранится версия текста согласия. Поднять её без изменения текста —
-    значит сослать старые записи на редакцию, которой человек не видел.
-    """
-    assert legal.POLICY_VERSION != legal.CONSENT_VERSION
-    assert legal.CONSENT_VERSION == "2026-08-26"
+
+def test_demo_names_real_operator_and_does_not_use_fictional_notary():
+    tenant = Tenant(slug="demo", display_name="Вымышленный нотариус", city="Москва",
+                    address="Вымышленный адрес", phone="000000")
+    text = legal.consent_text(tenant)
+    assert "Штыков Егор Дмитриевич" in text
+    assert "772594573137" in text
+    assert "negay2020@gmail.com" in text
+    assert "Вымышленный нотариус" not in text
+    assert "Вымышленный адрес" not in text
+
+
+def test_current_consent_does_not_promise_total_automatic_deletion():
+    tenant = Tenant(slug="ivanov", display_name="Нотариус Иванов", city="", address="", phone="")
+    text = legal.consent_text(tenant)
+    assert "карточки клиентов и заявок" in text
+    assert "не удаляет" in text
+    assert "никому" not in text
+    assert "третьим лицам не передаёт" not in text
+
+
+async def test_privacy_without_database_covers_demo_retention_and_incidents():
+    from app.web.deps import resolve_tenant
+
+    tenant = Tenant(slug="demo", display_name="Вымышленный нотариус", city="",
+                    address="", phone="", widget_mode="dark", widget_accent="#b89a5a",
+                    widget_font="sans")
+    app.dependency_overrides[resolve_tenant] = lambda: tenant
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get("/demo/privacy")
+        assert response.status_code == 200
+        body = response.text
+        assert "Штыков Егор Дмитриевич" in body
+        assert "772594573137" in body
+        assert "частью 3.1 статьи 21" in body
+        assert "266-ФЗ" in body
+        assert "24 часов" in body and "72 часов" in body
+        assert "21.1" not in body and "420-ФЗ" not in body
+        assert "Очистка файлов не удаляет карточки клиентов и заявок" in body
+        assert "не очищает резервные" in body
+        assert "Telegram" in body and "Vercel" in body
+        assert "трансграничной передачи нет" not in body
+    finally:
+        app.dependency_overrides.pop(resolve_tenant, None)
 
 
 async def test_privacy_page_speaks_about_cookies(http, tenant):

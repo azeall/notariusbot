@@ -102,12 +102,21 @@ class MaxBot:
                 await self.client.send(chat, "Номер выглядит неполным. Пришлите ещё раз.")
                 return
             session.draft.phone = text.strip()[:32]
-            session.step = GIVING_CONSENT
+            async with get_sessionmaker()() as db:
+                tenant = await flow.resolve_tenant(db, session.draft.tenant_slug)
+                if tenant is None:
+                    await self.client.send(chat, "Нотариус не найден. Нажмите /start, чтобы начать заново.")
+                    return
+                consent_text = flow.prepare_consent(tenant, session.draft)
+            for offset in range(0, len(consent_text) - 2000, 2000):
+                await self.client.send(chat, consent_text[offset:offset + 2000])
+            final_offset = ((len(consent_text) - 1) // 2000) * 2000
+            token = session.draft.extra["consent_fingerprint"][:32]
             await self.client.send(
-                chat,
-                flow.ask_consent(session.draft.tenant_slug),
-                buttons=[[("Согласен", "consent:yes")], [("Отказаться", "consent:no")]],
+                chat, consent_text[final_offset:],
+                buttons=[[("Согласен", f"consent:yes:{token}")], [("Отказаться", "consent:no")]],
             )
+            session.step = GIVING_CONSENT
             return
 
         # По умолчанию считаем текст поиском услуги.
@@ -140,8 +149,14 @@ class MaxBot:
             await self.client.send(
                 chat, "Хорошо. Без согласия оформить заявку нельзя. Напишите «начать» заново."
             )
-        elif action == "consent" and value == "yes":
-            session.draft.consent = True
+        elif action == "consent" and value.startswith("yes:"):
+            if session.step != GIVING_CONSENT:
+                return
+            try:
+                flow.accept_consent(session.draft, value.split(":", 1)[1])
+            except flow.FlowError as exc:
+                await self.client.send(chat, str(exc))
+                return
             await self._after_consent(chat, session)
         elif action == "slot":
             session.draft.slot = datetime.fromisoformat(value)

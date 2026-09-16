@@ -482,12 +482,14 @@
     el.className = 'tg-msg'
     var lines = [
       'Новая заявка № ' + state.number,
-      state.service.title, '',
-      state.name + ' · ' + state.phone,
-      state.slot ? 'Приём: ' + state.slot : 'Клиент присылает документы онлайн'
+      '',
+      'Подробности доступны сотруднику после входа в кабинет.'
     ]
     var body = document.createElement('div'); body.className = 'tg-text'; body.textContent = lines.join('\n')
     el.appendChild(body)
+    var link = document.createElement('a'); link.href = '#cab'; link.textContent = 'Открыть демо кабинета'
+    link.addEventListener('click', function (event) { event.preventDefault(); cab.scrollIntoView({ behavior: 'smooth', block: 'center' }) })
+    el.appendChild(link)
     var now = new Date()
     var time = document.createElement('div'); time.className = 'tg-time'
     time.textContent = now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0')
@@ -799,7 +801,7 @@
 
   function reset() {
     stopAll()
-    tg.innerHTML = '<div class="tg-empty" id="tg-empty">Здесь появится заявка,<br>как только клиент её отправит</div>'
+    tg.innerHTML = '<div class="tg-empty" id="tg-empty">Здесь появится уведомление,<br>как только клиент отправит заявку</div>'
     requests = []
     activeTab = 'new'
     renderCab(false)

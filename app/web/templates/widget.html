@@ -43,6 +43,9 @@
 (function () {
   var API = {{ api_base | tojson }};
   var PRIVACY = {{ privacy_url | tojson }};
+  var CONSENT_VERSION = {{ consent_version | tojson }};
+  var CONSENT_TEXT = {{ consent_text | tojson }};
+  var CONSENT_FINGERPRINT = {{ consent_fingerprint | tojson }};
 
   // Здороваемся с встраивающим сайтом. Он ждёт этого сообщения: не дождавшись,
   // считает виджет недоступным и показывает свою запасную форму вместо пустого
@@ -304,16 +307,14 @@
     reply(null, function () {
       bubble('bot', function (el) {
         var p = document.createElement('div');
-        p.textContent = 'Для оформления нужно согласие на обработку персональных данных. '
-          + 'Оператор — нотариус, к которому вы обращаетесь: данные нужны, чтобы подготовить '
-          + 'нотариальное действие и связаться с вами. Документы хранятся ограниченное время '
-          + 'и удаляются автоматически.';
+        p.textContent = CONSENT_TEXT;
+        p.style.whiteSpace = 'pre-line';
         el.appendChild(p);
         var a = document.createElement('a');
         a.href = PRIVACY;
         a.target = '_blank';
         a.rel = 'noopener';
-        a.textContent = 'Полный текст согласия и политика обработки';
+        a.textContent = 'Политика обработки персональных данных';
         el.appendChild(a);
       });
       choice('Согласен', null, function () {
@@ -364,6 +365,8 @@
         phone: state.phone,
         comment: '',
         consent: true,
+        consent_version: CONSENT_VERSION,
+        consent_fingerprint: CONSENT_FINGERPRINT,
         website: document.getElementById('website').value,
         slot: state.slot
       })

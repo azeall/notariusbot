@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator
 
+from app import legal
+
 PHONE_RE = re.compile(r"[^\d+]")
 
 
@@ -35,6 +37,8 @@ class RequestIn(BaseModel):
     phone: str = Field(min_length=5, max_length=32)
     comment: str = Field(default="", max_length=2000)
     consent: bool
+    consent_version: str
+    consent_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
     slot: datetime | None = None
     # Скрытое поле-ловушка: люди его не видят и не заполняют, боты заполняют.
     website: str = ""
@@ -61,6 +65,13 @@ class RequestIn(BaseModel):
     def consent_required(cls, value: bool) -> bool:
         if not value:
             raise ValueError("Без согласия на обработку персональных данных заявку принять нельзя")
+        return value
+
+    @field_validator("consent_version")
+    @classmethod
+    def current_consent(cls, value: str) -> str:
+        if value != legal.CONSENT_VERSION:
+            raise ValueError("Текст согласия обновлён. Обновите страницу и прочитайте его заново")
         return value
 
 

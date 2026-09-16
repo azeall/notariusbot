@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Request as HttpRequest, status
@@ -16,7 +16,7 @@ from app.domain.requests import (
     issue_upload_token,
 )
 from app.domain.schedule import SlotUnavailable, available_slots, book_slot
-from app.legal import CONSENT_VERSION
+from app.domain.consent import consent_fingerprint, record_consent
 from app.models import Channel, Client, Service, SubmissionMode, Tenant
 from app.notifications import notify_new_request
 from app.web.deps import client_ip, db_session, public_base_url, resolve_tenant
@@ -120,8 +120,7 @@ async def _get_or_create_client(
     else:
         client.full_name = payload.full_name
 
-    client.consent_given_at = datetime.now(UTC)
-    client.consent_text_version = CONSENT_VERSION
+    record_consent(client, tenant)
     await session.flush()
     return client
 
@@ -133,6 +132,11 @@ async def submit_request(
     tenant: Tenant = Depends(resolve_tenant),
     session: AsyncSession = Depends(db_session),
 ) -> RequestOut:
+    if payload.consent_fingerprint != consent_fingerprint(tenant):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Текст согласия или реквизиты оператора изменились. Обновите страницу и прочитайте согласие заново",
+        )
     settings = get_settings()
 
     # Поле-ловушка: заполнено — значит форму отправил не человек.

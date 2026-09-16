@@ -1,11 +1,17 @@
 """Сквозной путь клиента и сотрудника — через настоящие HTTP-запросы к приложению."""
 
+import json
+import re
+from hashlib import sha256
+
 import httpx
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.models import Attachment, Request
+from app import legal
+from app.domain.consent import consent_fingerprint
+from app.models import Attachment, Client, Request
 from app.web.deps import db_session
 from app.web.main import app
 
@@ -72,6 +78,8 @@ async def test_submit_request_returns_upload_link(http, session, tenant, service
             "phone": "+7 999 000-00-01",
             "comment": "срочно",
             "consent": True,
+            "consent_version": legal.CONSENT_VERSION,
+            "consent_fingerprint": consent_fingerprint(tenant),
         },
     )
     assert response.status_code == 201, response.text
@@ -79,6 +87,34 @@ async def test_submit_request_returns_upload_link(http, session, tenant, service
     assert body["public_number"] == 1
     assert body["upload_url"].startswith("https://test/upload/")
     assert len(body["checklist"]) == 3
+
+
+@pytest.mark.parametrize("existing_client", [False, True])
+async def test_stale_operator_consent_is_rejected_before_writes(
+    http, session, tenant, service, existing_client
+):
+    original_text = legal.consent_text(tenant)
+    payload = {
+        "service_id": str(service.id), "full_name": "Новое имя",
+        "phone": "+79990000001", "consent": True,
+        "consent_version": legal.CONSENT_VERSION,
+        "consent_fingerprint": sha256(original_text.encode("utf-8")).hexdigest(),
+    }
+    if existing_client:
+        session.add(Client(tenant_id=tenant.id, channel="widget",
+                           external_id=payload["phone"], phone=payload["phone"],
+                           full_name="Старое имя", consent_receipt={"text": "старое согласие"}))
+    tenant.display_name = "Другой нотариус"
+    await session.commit()
+    response = await http.post(f"/api/v1/{tenant.slug}/requests", json=payload)
+    assert response.status_code == 409, response.text
+    assert await session.scalar(select(Request)) is None
+    saved = await session.scalar(select(Client))
+    if existing_client:
+        assert saved.full_name == "Старое имя"
+        assert saved.consent_receipt == {"text": "старое согласие"}
+    else:
+        assert saved is None
 
 
 async def test_upload_link_points_at_host_client_used(http, tenant, service):
@@ -95,6 +131,8 @@ async def test_upload_link_points_at_host_client_used(http, tenant, service):
             "full_name": "Смирнов Алексей",
             "phone": "+79990000001",
             "consent": True,
+            "consent_version": legal.CONSENT_VERSION,
+            "consent_fingerprint": consent_fingerprint(tenant),
         },
     )
     assert response.status_code == 201
@@ -114,6 +152,8 @@ async def test_upload_link_never_downgrades_to_http(http, tenant, service):
             "full_name": "Смирнов Алексей",
             "phone": "+79990000001",
             "consent": True,
+            "consent_version": legal.CONSENT_VERSION,
+            "consent_fingerprint": consent_fingerprint(tenant),
         },
     )
     assert response.json()["upload_url"].startswith("https://zayavki.example.ru/upload/")
@@ -127,6 +167,8 @@ async def test_request_without_consent_is_rejected(http, tenant, service):
             "full_name": "Смирнов Алексей",
             "phone": "+79990000001",
             "consent": False,
+            "consent_version": legal.CONSENT_VERSION,
+            "consent_fingerprint": consent_fingerprint(tenant),
         },
     )
     assert response.status_code == 422
@@ -140,6 +182,8 @@ async def test_honeypot_blocks_bot(http, tenant, service):
             "full_name": "Bot Botovich",
             "phone": "+79990000009",
             "consent": True,
+            "consent_version": legal.CONSENT_VERSION,
+            "consent_fingerprint": consent_fingerprint(tenant),
             "website": "http://spam.example",
         },
     )
@@ -154,6 +198,8 @@ async def test_short_phone_rejected(http, tenant, service):
             "full_name": "Смирнов Алексей",
             "phone": "123",
             "consent": True,
+            "consent_version": legal.CONSENT_VERSION,
+            "consent_fingerprint": consent_fingerprint(tenant),
         },
     )
     assert response.status_code == 422
@@ -167,6 +213,8 @@ async def test_visit_service_requires_slot(http, tenant, visit_service):
             "full_name": "Смирнов Алексей",
             "phone": "+79990000001",
             "consent": True,
+            "consent_version": legal.CONSENT_VERSION,
+            "consent_fingerprint": consent_fingerprint(tenant),
         },
     )
     assert response.status_code == 400
@@ -184,6 +232,8 @@ async def test_visit_service_books_slot(http, tenant, visit_service):
             "full_name": "Смирнов Алексей",
             "phone": "+79990000001",
             "consent": True,
+            "consent_version": legal.CONSENT_VERSION,
+            "consent_fingerprint": consent_fingerprint(tenant),
             "slot": slots[0]["starts_at"],
         },
     )
@@ -202,6 +252,8 @@ async def test_rate_limit_kicks_in(http, tenant, service):
         "full_name": "Спамов Спам",
         "phone": "+79990000005",
         "consent": True,
+        "consent_version": legal.CONSENT_VERSION,
+        "consent_fingerprint": consent_fingerprint(tenant),
     }
     codes = []
     for _ in range(7):
@@ -218,6 +270,8 @@ async def test_upload_flow_end_to_end(http, session, tenant, service, employee):
             "full_name": "Смирнов Алексей",
             "phone": "+79990000001",
             "consent": True,
+            "consent_version": legal.CONSENT_VERSION,
+            "consent_fingerprint": consent_fingerprint(tenant),
         },
     )
     token = created.json()["upload_url"].rsplit("/", 1)[-1]
@@ -262,6 +316,8 @@ async def test_upload_respects_file_limit(http, tenant, service):
             "full_name": "Смирнов Алексей",
             "phone": "+79990000001",
             "consent": True,
+            "consent_version": legal.CONSENT_VERSION,
+            "consent_fingerprint": consent_fingerprint(tenant),
         },
     )
     token = created.json()["upload_url"].rsplit("/", 1)[-1]
@@ -283,6 +339,8 @@ async def test_finish_twice_is_gone(http, tenant, service):
             "full_name": "Смирнов Алексей",
             "phone": "+79990000001",
             "consent": True,
+            "consent_version": legal.CONSENT_VERSION,
+            "consent_fingerprint": consent_fingerprint(tenant),
         },
     )
     token = created.json()["upload_url"].rsplit("/", 1)[-1]
@@ -299,6 +357,8 @@ async def test_upload_rejects_camera_filename(http, tenant, service):
             "full_name": "Смирнов Алексей",
             "phone": "+79990000001",
             "consent": True,
+            "consent_version": legal.CONSENT_VERSION,
+            "consent_fingerprint": consent_fingerprint(tenant),
         },
     )
     token = created.json()["upload_url"].rsplit("/", 1)[-1]
@@ -327,6 +387,8 @@ async def test_upload_page_explains_naming_rule(http, tenant, service):
             "full_name": "Смирнов Алексей",
             "phone": "+79990000001",
             "consent": True,
+            "consent_version": legal.CONSENT_VERSION,
+            "consent_fingerprint": consent_fingerprint(tenant),
         },
     )
     token = created.json()["upload_url"].rsplit("/", 1)[-1]
@@ -343,6 +405,8 @@ async def test_upload_rejects_unsupported_type(http, tenant, service):
             "full_name": "Смирнов Алексей",
             "phone": "+79990000001",
             "consent": True,
+            "consent_version": legal.CONSENT_VERSION,
+            "consent_fingerprint": consent_fingerprint(tenant),
         },
     )
     token = created.json()["upload_url"].rsplit("/", 1)[-1]
@@ -367,6 +431,8 @@ async def test_staff_login_and_claim(http, session, tenant, service, employee):
             "full_name": "Смирнов Алексей",
             "phone": "+79990000001",
             "consent": True,
+            "consent_version": legal.CONSENT_VERSION,
+            "consent_fingerprint": consent_fingerprint(tenant),
         },
     )
 
@@ -408,6 +474,8 @@ async def test_queue_count_requires_login_and_counts_new(http, tenant, service, 
             "full_name": "Смирнов Алексей",
             "phone": "+79990000001",
             "consent": True,
+            "consent_version": legal.CONSENT_VERSION,
+            "consent_fingerprint": consent_fingerprint(tenant),
         },
     )
     assert (await http.get("/staff/queue-count")).json() == {"new": 1}
@@ -467,6 +535,8 @@ async def test_staff_downloads_decrypted_document(http, session, tenant, service
             "full_name": "Смирнов Алексей",
             "phone": "+79990000001",
             "consent": True,
+            "consent_version": legal.CONSENT_VERSION,
+            "consent_fingerprint": consent_fingerprint(tenant),
         },
     )
     token = created.json()["upload_url"].rsplit("/", 1)[-1]
@@ -498,6 +568,8 @@ async def test_staff_cannot_reach_other_tenant_request(
             "full_name": "Смирнов Алексей",
             "phone": "+79990000001",
             "consent": True,
+            "consent_version": legal.CONSENT_VERSION,
+            "consent_fingerprint": consent_fingerprint(tenant),
         },
     )
     assert created.status_code == 201
@@ -587,3 +659,33 @@ async def test_root_page_hides_internal_addresses(http):
     assert "/staff/" not in page.text
     assert "/widget/" not in page.text
     assert "platform" not in page.text
+
+
+async def test_widget_fingerprint_matches_shown_text_and_saved_receipt(http, session, tenant, service):
+    page = await http.get(f"/widget/{tenant.slug}")
+    shown_text = json.loads(re.search(r"var CONSENT_TEXT = (.*);", page.text).group(1))
+    fingerprint = json.loads(re.search(r"var CONSENT_FINGERPRINT = (.*);", page.text).group(1))
+    assert fingerprint == sha256(shown_text.encode("utf-8")).hexdigest()
+    payload = dict(service_id=str(service.id), full_name="Test Client", phone="+79990000001",
+                   consent=True, consent_version=legal.CONSENT_VERSION)
+    missing = await http.post(f"/api/v1/{tenant.slug}/requests", json=payload)
+    assert missing.status_code == 422
+    assert await session.scalar(select(Client)) is None
+    assert await session.scalar(select(Request)) is None
+    payload["consent_fingerprint"] = fingerprint
+    accepted = await http.post(f"/api/v1/{tenant.slug}/requests", json=payload)
+    assert accepted.status_code == 201, accepted.text
+    saved = await session.scalar(select(Request))
+    assert saved.consent_receipt["text"] == shown_text
+
+
+async def test_changed_template_fingerprint_returns_409(http, session, tenant, service, monkeypatch):
+    payload = dict(service_id=str(service.id), full_name="Test Client", phone="+79990000001",
+                   consent=True, consent_version=legal.CONSENT_VERSION,
+                   consent_fingerprint=consent_fingerprint(tenant))
+    original_text = legal.consent_text(tenant)
+    monkeypatch.setattr(legal, "consent_text", lambda tenant: original_text + " updated")
+    response = await http.post(f"/api/v1/{tenant.slug}/requests", json=payload)
+    assert response.status_code == 409
+    assert await session.scalar(select(Client)) is None
+    assert await session.scalar(select(Request)) is None

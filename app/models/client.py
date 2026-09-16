@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import DateTime, Enum, String, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TenantScoped, Timestamps, UUIDPrimaryKey
@@ -34,6 +35,9 @@ class Client(Base, UUIDPrimaryKey, TenantScoped, Timestamps):
         DateTime(timezone=True), nullable=True
     )
     consent_text_version: Mapped[str] = mapped_column(String(32), default="", nullable=False)
+    consent_receipt: Mapped[dict] = mapped_column(
+        JSONB, default=dict, nullable=False, server_default="{}"
+    )
 
     @property
     def has_consent(self) -> bool:

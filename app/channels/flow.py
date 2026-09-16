@@ -7,20 +7,22 @@
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import legal
 from app.config import get_settings
 from app.domain import catalog
+from app.domain.consent import consent_fingerprint, record_consent
 from app.domain.requests import RequestError, create_request, issue_upload_token
 from app.domain.schedule import SlotUnavailable, available_slots, book_slot
 
 # Версия согласия и его текст живут в app.legal — одни на все каналы. Своя копия
 # здесь означала бы, что в базу пишется версия, которой человек не видел.
-from app.legal import CONSENT_VERSION, consent_summary
+from app.legal import consent_summary
 from app.models import Channel, Client, Request, Service, SubmissionMode, Tenant
 from app.notifications import notify_new_request as notify_staff
 
@@ -81,6 +83,36 @@ def ask_consent(tenant_slug: str) -> str:
     """
     base = get_settings().public_base_url.rstrip("/")
     return f"{ASK_CONSENT}\n\nПолный текст: {base}/{tenant_slug}/privacy"
+
+
+def prepare_consent(tenant: Tenant, draft: Draft) -> str:
+    """Связать черновик с полным текстом, который адаптер покажет в чате."""
+    draft.consent = False
+    draft.extra.update(
+        consent_fingerprint=consent_fingerprint(tenant),
+        consent_version=legal.CONSENT_VERSION,
+        consent_tenant=str(tenant.id),
+    )
+    base = get_settings().public_base_url.rstrip("/")
+    return f"{legal.consent_text(tenant)}\n\nПолитика: {base}/{tenant.slug}/privacy"
+
+
+def accept_consent(draft: Draft, token: str) -> None:
+    fingerprint = draft.extra.get("consent_fingerprint", "")
+    if not fingerprint or token != fingerprint[:32]:
+        raise FlowError("Это согласие устарело. Нажмите /start и прочитайте текст заново.")
+    draft.consent = True
+
+
+def _validate_consent(tenant: Tenant, draft: Draft) -> None:
+    if not draft.consent:
+        raise FlowError("Без согласия на обработку персональных данных заявку принять нельзя.")
+    if (draft.tenant_slug != tenant.slug
+            or draft.extra.get("consent_tenant") != str(tenant.id)
+            or draft.extra.get("consent_version") != legal.CONSENT_VERSION
+            or draft.extra.get("consent_fingerprint") != consent_fingerprint(tenant)):
+        raise FlowError("Текст согласия или реквизиты изменились. Нажмите /start и дайте согласие заново.")
+
 
 NOT_FOUND = (
     "Не нашёл подходящей услуги по этим словам. Попробуйте написать иначе "
@@ -236,6 +268,7 @@ async def upsert_client(
     external_id: str,
     draft: Draft,
 ) -> Client:
+    _validate_consent(tenant, draft)
     client = await session.scalar(
         select(Client).where(
             Client.tenant_id == tenant.id,
@@ -254,8 +287,7 @@ async def upsert_client(
     client.full_name = draft.full_name or client.full_name
     client.phone = draft.phone or client.phone
     if draft.consent:
-        client.consent_given_at = datetime.now(UTC)
-        client.consent_text_version = CONSENT_VERSION
+        record_consent(client, tenant)
 
     await session.flush()
     return client
@@ -274,8 +306,7 @@ async def submit(
     draft: Draft,
 ) -> tuple[Request, str | None]:
     """Создать заявку по собранным ответам. Возвращает заявку и ссылку на загрузку."""
-    if not draft.consent:
-        raise FlowError("Без согласия на обработку персональных данных заявку принять нельзя.")
+    _validate_consent(tenant, draft)
     if draft.service_id is None:
         raise FlowError("Сначала выберите услугу.")
 
