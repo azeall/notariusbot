@@ -14,7 +14,7 @@ jobs:
           POSTGRES_DB: notarybot_test
         ports: ['5432:5432']
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -35,6 +35,6 @@ jobs:
           node-version: 24
       - run: pip install -r requirements.txt
       - run: ruff check --select E9,F63,F7,F82 app tests
-      - run: pytest -q
+      - run: python -m pytest -q
       - name: Validate showcase scripts
         run: for file in vendor-site/*.js; do node --check "$file"; done
