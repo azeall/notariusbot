@@ -119,8 +119,38 @@ a { color: inherit; }
 section { padding: var(--gap) clamp(20px, 5vw, 64px); }
 
 .hero {
-  max-width: 1180px; margin: 0 auto;
-  padding: clamp(58px, 9vw, 120px) clamp(20px, 5vw, 64px) clamp(46px, 6vw, 84px);
+  max-width: 1400px; margin: 0 auto;
+  padding: clamp(38px, 5vw, 72px) clamp(20px, 5vw, 64px);
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  align-items: center; gap: clamp(32px, 5vw, 76px);
+}
+.hero-copy { min-width: 0; }
+.hero h1 { font-size: clamp(2.35rem, 4.2vw, 3.65rem); }
+.hero .lede { font-size: clamp(1.0625rem, 1.5vw, 1.1875rem); max-width: 29em; }
+.hero-example { margin: 0; min-width: 0; padding: 24px; border: 1px solid var(--line); background: var(--wash); border-radius: 8px; }
+.example-caption { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 20px; font-size: 12px; color: var(--muted); }
+.example-caption > :last-child { border: 1px solid #a39b8e; border-radius: 3px; padding: 0 6px; }
+.example-question { max-width: 86%; margin-left: auto; padding: 17px 22px; color: var(--paper); background: var(--ink); border-radius: 10px 10px 2px 10px; }
+.example-label { display: block; font-size: 11px; letter-spacing: .03em; }
+.example-question .example-label { color: #c4becd; margin-bottom: 5px; }
+.example-question p { font-size: 20px; line-height: 1.4; }
+.example-connector { display: flex; align-items: center; gap: 9px; padding: 10px 0; color: var(--muted); font-size: 20px; }
+.example-connector span { flex: 1; height: 1px; background: #d6cebf; }
+.example-request { padding: 22px; background: var(--surface); border: 1px solid #d6cebf; box-shadow: 0 12px 24px -20px #5d5040; }
+.example-request-head { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+.example-request-head .example-label { color: var(--muted); }
+.example-status { font-size: 11px; color: #3f5441; background: #e7ece3; border-radius: 3px; padding: 2px 7px; }
+.example-request h2 { font-size: clamp(23px, 2vw, 28px); line-height: 1.25; margin-top: 18px; }
+.example-request dl { margin: 20px 0; font-size: 13px; }
+.example-request dl > div { display: flex; justify-content: space-between; gap: 14px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.example-request dt { color: var(--muted); }
+.example-request dd { margin: 0; text-align: right; }
+.example-notice { font-size: 12px; line-height: 1.55; color: var(--muted); }
+.example-notice span { margin-right: 5px; }
+.hero-example figcaption { margin-top: 14px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; gap: 32px; }
+  .hero-example { max-width: 560px; width: 100%; }
 }
 
 .eyebrow {
@@ -698,11 +728,14 @@ section { padding: var(--gap) clamp(20px, 5vw, 64px); }
 
 .sites {
   display: grid; gap: 20px;
-  /* 200px, а не 248: оформлений стало пять, и при прежнем минимуме пятая
-     плитка уходила на второй ряд одна. Пустой ряд рядом с одинокой карточкой
-     читается как «этот вариант не такой, как остальные». */
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
+@media (min-width: 1000px) {
+  .sites { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .site { grid-column: span 2; }
+  .site:nth-child(4) { grid-column: 2 / span 2; }
+}
+@media (min-width: 601px) and (max-width: 999px) { .sites { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 
 .site {
   display: flex; flex-direction: column;
@@ -728,9 +761,12 @@ section { padding: var(--gap) clamp(20px, 5vw, 64px); }
 .demo-settings[open] > summary, .data-details[open] > summary { margin-bottom:20px; }
 section[id] { scroll-margin-top:86px; }
 @media (max-width:600px) {
-  .sites { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+  .sites { grid-template-columns:1fr; gap:18px; }
   .site { padding:12px; }
   .site-shot { height:auto; border-radius:6px; }
   .site-name { font-size:14px; }
   .hero-cta .btn { white-space:normal; text-align:center; }
+  .hero-example { padding: 16px; }
+  .example-request { padding: 18px; }
+  .contact-links { font-size: 14px; gap: 10px 18px; }
 }
