@@ -13,6 +13,7 @@ from app.web import sessions
 
 WEB_DIR = Path(__file__).resolve().parent
 TEMPLATES = Jinja2Templates(directory=str(WEB_DIR / "templates"))
+TEMPLATES.env.globals["asset_version"] = "20260917-ux"
 
 
 @asynccontextmanager

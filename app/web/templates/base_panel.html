@@ -7,7 +7,7 @@
   <title>{{ title }} — {{ tenant.display_name if tenant else 'Нотариус' }}</title>
   <!-- Две стороны продукта выглядят по-разному намеренно: кабинет владельца
        сервиса — в стиле его сайта, панель нотариуса — в его палитре. -->
-  <link rel="stylesheet" href="{{ stylesheet | default('/static/notary.css') }}">
+  <link rel="stylesheet" href="{{ stylesheet | default('/static/notary.css') }}?v={{ asset_version }}">
   {% block extra_css %}{% endblock %}
 </head>
 <body>
