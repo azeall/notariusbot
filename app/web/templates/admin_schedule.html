@@ -1,37 +1,47 @@
 {% extends "base_panel.html" %}
+{% block extra_css %}<link rel="stylesheet" href="/static/admin.css">{% endblock %}
 {% block content %}
+<div class="admin-page">
 <h1>Расписание</h1>
 <p class="lead">
   Из рабочих часов нарезаются слоты записи. Длительность приёма задаётся у каждой услуги
   отдельно. Часовой пояс: {{ tenant.timezone }}.
 </p>
+<p><a class="btn ghost" href="/admin/calendar">Календарь записей на приём →</a></p>
 
 <form method="post" action="/admin/schedule">
-  <div class="card">
-    <table>
-      <tr>
-        <th>День</th><th>Рабочий</th><th>С</th><th>До</th><th>Перерыв с</th><th>Перерыв до</th>
-      </tr>
+  <div class="schedule-days">
       {% for weekday in range(7) %}
         {% set row = rows.get(weekday) %}
-        <tr>
-          <td>{{ weekday_names[weekday] }}</td>
-          <td>
+        <fieldset class="schedule-day">
+          <legend>{{ weekday_names[weekday] }}</legend>
+          <label class="admin-check">
             <input type="checkbox" name="working_{{ weekday }}" value="1"
                    {% if row and row.is_working %}checked{% elif not row and weekday < 5 %}checked{% endif %}>
-          </td>
-          <td><input type="time" name="opens_{{ weekday }}"
-                     value="{{ row.opens_at.strftime('%H:%M') if row else '09:00' }}"></td>
-          <td><input type="time" name="closes_{{ weekday }}"
-                     value="{{ row.closes_at.strftime('%H:%M') if row else '18:00' }}"></td>
-          <td><input type="time" name="break_start_{{ weekday }}"
-                     value="{{ row.break_starts_at.strftime('%H:%M') if row and row.break_starts_at else '' }}"></td>
-          <td><input type="time" name="break_end_{{ weekday }}"
-                     value="{{ row.break_ends_at.strftime('%H:%M') if row and row.break_ends_at else '' }}"></td>
-        </tr>
+            Приём в этот день
+          </label>
+          <div class="schedule-times">
+            <label class="field"><span class="cap">Начало приёма</span>
+              <input type="time" name="opens_{{ weekday }}"
+                     value="{{ row.opens_at.strftime('%H:%M') if row else '09:00' }}">
+            </label>
+            <label class="field"><span class="cap">Конец приёма</span>
+              <input type="time" name="closes_{{ weekday }}"
+                     value="{{ row.closes_at.strftime('%H:%M') if row else '18:00' }}">
+            </label>
+            <label class="field"><span class="cap">Перерыв с</span>
+              <input type="time" name="break_start_{{ weekday }}"
+                     value="{{ row.break_starts_at.strftime('%H:%M') if row and row.break_starts_at else '' }}">
+            </label>
+            <label class="field"><span class="cap">Перерыв до</span>
+              <input type="time" name="break_end_{{ weekday }}"
+                     value="{{ row.break_ends_at.strftime('%H:%M') if row and row.break_ends_at else '' }}">
+            </label>
+          </div>
+        </fieldset>
       {% endfor %}
-    </table>
   </div>
+  <p class="lead">Нет перерыва — оставьте оба поля перерыва пустыми.</p>
 
   <div class="actions"><button type="submit">Сохранить расписание</button></div>
 </form>
@@ -72,5 +82,6 @@
     </div>
     <button type="submit">Добавить выходной</button>
   </form>
+</div>
 </div>
 {% endblock %}

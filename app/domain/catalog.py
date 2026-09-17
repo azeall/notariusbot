@@ -55,7 +55,7 @@ def score_service(service: Service, query: str) -> int:
             score += 3
         elif word in hay_words:
             score += 2
-        elif any(h.startswith(word[:4]) for h in hay_words):
+        elif any(h.startswith(word[:5] if len(word) > 5 else word[:4]) for h in hay_words):
             # Грубая замена морфологии: «доверенност(ь/и/ью)» → общий корень.
             score += 1
     return score

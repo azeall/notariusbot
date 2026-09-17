@@ -1,4 +1,5 @@
 {% extends "base_panel.html" %}
+{% block container_class %}staff-workspace{% endblock %}
 {% block content %}
 <h1>Заявки</h1>
 <p class="lead">
@@ -9,6 +10,49 @@
     попроситься в помощь.
   {% endif %}
 </p>
+
+<form method="get" action="/staff" class="card queue-filters" aria-label="Поиск и фильтры заявок">
+  <label class="field queue-search">
+    <span class="cap">Имя или телефон клиента</span>
+    <input type="search" name="q" value="{{ filters.q }}" placeholder="Например, Смирнова или 999 123-45-67">
+  </label>
+  <label class="field">
+    <span class="cap">Статус</span>
+    <select name="status">
+      <option value="">Все активные</option>
+      {% for st in queue_statuses %}
+        <option value="{{ st.value }}"{% if filters.status == st.value %} selected{% endif %}>{{ labels[st] }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="field">
+    <span class="cap">Ведущий сотрудник</span>
+    <select name="assignee">
+      <option value="">Все сотрудники</option>
+      <option value="unassigned"{% if filters.assignee == 'unassigned' %} selected{% endif %}>Без ведущего</option>
+      {% for person in assignees %}
+        <option value="{{ person.id }}"{% if filters.assignee == person.id|string %} selected{% endif %}>{{ person.full_name }}{% if not person.is_active %} (неактивен){% endif %}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="field">
+    <span class="cap">Получена с</span>
+    <input type="date" name="date_from" value="{{ filters.date_from }}">
+  </label>
+  <label class="field">
+    <span class="cap">По включительно</span>
+    <input type="date" name="date_to" value="{{ filters.date_to }}">
+  </label>
+  <div class="actions filter-actions">
+    <button type="submit">Найти</button>
+    {% if filters_active %}<a class="btn ghost" href="/staff">Сбросить</a>{% endif %}
+  </div>
+  <p class="filter-note">Активные заявки · время {{ tenant.timezone }}. Фильтры применяются ко всем трём спискам.</p>
+  {% if filter_error %}<p class="error filter-note" role="alert">{{ filter_error }}</p>{% endif %}
+</form>
+{% if filters_active %}
+  <p class="lead" role="status">Найдено заявок: {{ unclaimed|length + mine|length + others|length }}.</p>
+{% endif %}
 
 <div class="callout" id="fresh" hidden>
   Пришли новые заявки: <b id="fresh-count">0</b>
@@ -39,7 +83,7 @@
 
 <h2>Свободные ({{ unclaimed|length }})</h2>
 {% if not unclaimed %}
-  <div class="empty">Пусто. Все заявки разобраны.</div>
+  <div class="empty">{{ 'Нет свободных заявок по выбранным фильтрам.' if filters_active else 'Пусто. Все заявки разобраны.' }}</div>
 {% endif %}
 {% for item in unclaimed %}
   <div class="card row">
@@ -50,8 +94,13 @@
         {%- if item.attachments %} · документов: {{ item.attachments|length }}{% endif %}
         {%- if item.submission_mode.value == 'visit' %} · личный визит{% endif %}
       </div>
+      <div class="m queue-time">
+        Получена <time datetime="{{ timing[item.id].received.isoformat() }}">{{ timing[item.id].received.strftime('%d.%m.%Y %H:%M') }}</time>
+        · ожидает {{ timing[item.id].waiting }}
+      </div>
     </div>
     <span class="badge new">{{ labels[item.status] }}</span>
+    <a class="btn ghost" href="/staff/requests/{{ item.id }}">Посмотреть</a>
     <form method="post" action="/staff/requests/{{ item.id }}/claim" style="margin:0">
       <button type="submit">Взять</button>
     </form>
@@ -60,7 +109,7 @@
 
 <h2>{{ 'Мои в работе' if not staff.can_manage_catalog else 'Веду сам' }} ({{ mine|length }})</h2>
 {% if not mine %}
-  <div class="empty">Вы пока ничего не взяли.</div>
+  <div class="empty">{{ 'Нет ваших заявок по выбранным фильтрам.' if filters_active else 'Вы пока ничего не взяли.' }}</div>
 {% endif %}
 {% for item in mine %}
   <div class="card row">
@@ -74,6 +123,10 @@
         {%- set active = item.participants | selectattr('is_active') | list %}
         {%- if active %} · вместе: {{ active|length }}{% endif %}
       </div>
+      <div class="m queue-time">
+        Получена <time datetime="{{ timing[item.id].received.isoformat() }}">{{ timing[item.id].received.strftime('%d.%m.%Y %H:%M') }}</time>
+        {% if item.claimed_at %} · до принятия {{ timing[item.id].waiting }}{% endif %}
+      </div>
     </div>
     <span class="badge">{{ labels[item.status] }}</span>
     <a class="btn ghost" href="/staff/requests/{{ item.id }}">Открыть</a>
@@ -85,7 +138,7 @@
   ({{ others|length }})
 </h2>
 {% if not others %}
-  <div class="empty">Никто ничего не ведёт.</div>
+  <div class="empty">{{ 'Нет заявок других сотрудников по выбранным фильтрам.' if filters_active else 'Никто ничего не ведёт.' }}</div>
 {% else %}
   <p class="lead" style="margin-bottom:14px">
     {% if staff.can_manage_catalog %}
@@ -107,6 +160,10 @@
         {%- set active = item.participants | selectattr('is_active') | list %}
         {%- if active %} · вместе: {{ active|length }}{% endif %}
       </div>
+      <div class="m queue-time">
+        Получена <time datetime="{{ timing[item.id].received.isoformat() }}">{{ timing[item.id].received.strftime('%d.%m.%Y %H:%M') }}</time>
+        {% if item.claimed_at %} · до принятия {{ timing[item.id].waiting }}{% endif %}
+      </div>
     </div>
     <span class="badge">{{ labels[item.status] }}</span>
     <a class="btn ghost" href="/staff/requests/{{ item.id }}">Открыть</a>
@@ -117,7 +174,7 @@
 // Очередь сама сообщает о новых заявках: без этого сотрудник узнаёт о заявке,
 // только если догадается обновить страницу.
 (function () {
-  var known = {{ unclaimed|length }};
+  var known = {{ new_count }};
   var banner = document.getElementById('fresh');
   var counter = document.getElementById('fresh-count');
   var baseTitle = document.title;
@@ -132,6 +189,9 @@
           counter.textContent = extra;
           banner.hidden = false;
           document.title = '(' + extra + ') ' + baseTitle;
+        } else {
+          banner.hidden = true;
+          document.title = baseTitle;
         }
       })
       .catch(function () { /* сеть моргнула — просто ждём следующей проверки */ });

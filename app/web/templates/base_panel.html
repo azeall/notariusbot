@@ -8,18 +8,20 @@
   <!-- Две стороны продукта выглядят по-разному намеренно: кабинет владельца
        сервиса — в стиле его сайта, панель нотариуса — в его палитре. -->
   <link rel="stylesheet" href="{{ stylesheet | default('/static/notary.css') }}">
+  {% block extra_css %}{% endblock %}
 </head>
 <body>
 {% if staff %}
 <div class="topbar">
   <div class="brand">{{ tenant.display_name }}</div>
-  <nav>
-    <a href="/staff">Заявки</a>
+  <nav aria-label="Основная навигация">
+    <a href="/staff"{% if request.url.path == '/staff' or request.url.path.startswith('/staff/requests/') %} aria-current="page"{% endif %}>Заявки</a>
     {% if staff.can_manage_catalog %}
-      <a href="/admin">Услуги</a>
-      <a href="/admin/schedule">Расписание</a>
-      <a href="/admin/staff">Сотрудники</a>
-      <a href="/admin/audit">Журнал</a>
+      <a href="/admin"{% if request.url.path == '/admin' or request.url.path.startswith('/admin/services/') %} aria-current="page"{% endif %}>Услуги</a>
+      <a href="/admin/calendar"{% if request.url.path == '/admin/calendar' %} aria-current="page"{% endif %}>Календарь</a>
+      <a href="/admin/schedule"{% if request.url.path == '/admin/schedule' %} aria-current="page"{% endif %}>Расписание</a>
+      <a href="/admin/staff"{% if request.url.path.startswith('/admin/staff') %} aria-current="page"{% endif %}>Сотрудники</a>
+      <a href="/admin/audit"{% if request.url.path == '/admin/audit' %} aria-current="page"{% endif %}>Журнал</a>
     {% endif %}
   </nav>
   <a href="/staff/password" class="who" style="text-decoration:none">{{ staff.full_name }}</a>
@@ -28,8 +30,8 @@
   </form>
 </div>
 {% endif %}
-<div class="container">
+<main class="container {% block container_class %}{% endblock %}">
   {% block content %}{% endblock %}
-</div>
+</main>
 </body>
 </html>

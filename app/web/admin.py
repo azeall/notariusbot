@@ -2,20 +2,24 @@ import csv
 import io
 import secrets
 import uuid
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request as HttpRequest, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from starlette.datastructures import FormData
 
 from app.config import get_settings
 from app.domain import password_reset
 from app.domain.security import hash_password
 from app.models import (
+    Appointment,
     AuditLog,
     DayOff,
+    Request,
     Service,
     ServiceDocument,
     Staff,
@@ -46,7 +50,7 @@ def _templates():
 
 
 def parse_documents(raw: str) -> list[tuple[str, str, bool]]:
-    """Разбор перечня документов из текстового поля.
+    """Поддержка прежнего текстового формата POST /admin/services.
 
     Одна строка — один документ. Строка, начинающаяся с «?», помечает документ
     необязательным. Пояснение отделяется знаком «—».
@@ -54,7 +58,6 @@ def parse_documents(raw: str) -> list[tuple[str, str, bool]]:
         Паспорт доверителя — все страницы
         ? Согласие супруга
 
-    Так нотариус правит перечень как обычный список, не воюя с динамической формой.
     """
     items: list[tuple[str, str, bool]] = []
     for line in raw.splitlines():
@@ -73,13 +76,76 @@ def parse_documents(raw: str) -> list[tuple[str, str, bool]]:
     return items
 
 
-def format_documents(documents: list[ServiceDocument]) -> str:
-    lines = []
-    for doc in sorted(documents, key=lambda d: d.sort_order):
-        prefix = "" if doc.is_required else "? "
-        suffix = f" — {doc.description}" if doc.description else ""
-        lines.append(f"{prefix}{doc.title}{suffix}")
-    return "\n".join(lines)
+def document_rows_from_form(form: FormData) -> list[dict]:
+    return [
+        {
+            "title": str(form.get(f"document_title_{index}", "")),
+            "description": str(form.get(f"document_description_{index}", "")),
+            "is_required": bool(form.get(f"document_required_{index}")),
+        }
+        for index in form.getlist("document_row")
+    ]
+
+
+async def _document_editor_response(
+    http_request: HttpRequest,
+    owner: Staff,
+    session: AsyncSession,
+    form: FormData,
+    rows: list[dict],
+    error: str = "",
+):
+    # Черновик существует только в ответе: добавление строки не сохраняет услугу.
+    draft = {key: form.get(key, "") for key in (
+        "title", "slug", "description", "visit_duration_minutes", "lead_time_note",
+        "price_note", "sort_order",
+    )}
+    draft.update(
+        id=form.get("service_id", ""),
+        keywords=[word.strip() for word in str(form.get("keywords", "")).split(",")],
+        is_active=bool(form.get("is_active")),
+        submission_mode={"value": form.get("submission_mode", "documents")},
+    )
+    return _templates().TemplateResponse(
+        http_request,
+        "admin_service_form.html",
+        {
+            "title": "Редактирование услуги", "staff": owner,
+            "tenant": await session.get(Tenant, owner.tenant_id),
+            "service": draft, "is_new": not draft["id"],
+            "document_rows": rows, "error": error,
+        },
+        status_code=400 if error else 200,
+    )
+
+
+@router.post("/services/documents", response_class=HTMLResponse)
+async def edit_document_rows(
+    http_request: HttpRequest,
+    owner: Staff = Depends(current_owner),
+    session: AsyncSession = Depends(db_session),
+):
+    form = await http_request.form()
+    if form.get("service_id"):
+        try:
+            service_id = uuid.UUID(str(form["service_id"]))
+        except ValueError:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Некорректный идентификатор услуги")
+        service = await session.scalar(select(Service).where(
+            Service.id == service_id,
+            Service.tenant_id == owner.tenant_id,
+        ))
+        if service is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Услуга не найдена")
+    rows = document_rows_from_form(form)
+    action = str(form.get("document_action", ""))
+    if action == "add":
+        rows.append({"title": "", "description": "", "is_required": True})
+    elif action.startswith("remove:"):
+        index = action.removeprefix("remove:")
+        if index.isdigit() and int(index) < len(rows):
+            rows.pop(int(index))
+    return await _document_editor_response(http_request, owner, session, form, rows)
 
 
 @router.get("", response_class=HTMLResponse)
@@ -119,7 +185,8 @@ async def new_service_form(
             "staff": owner,
             "tenant": tenant,
             "service": None,
-            "documents_text": "",
+            "is_new": True,
+            "document_rows": [{"title": "", "description": "", "is_required": True}],
         },
     )
 
@@ -147,16 +214,18 @@ async def edit_service_form(
             "staff": owner,
             "tenant": tenant,
             "service": service,
-            "documents_text": format_documents(service.documents),
+            "is_new": False,
+            "document_rows": sorted(service.documents, key=lambda doc: doc.sort_order),
         },
     )
 
 
 @router.post("/services")
 async def save_service(
+    http_request: HttpRequest,
     service_id: str = Form(""),
     title: str = Form(...),
-    slug: str = Form(...),
+    slug: str = Form(""),
     description: str = Form(""),
     submission_mode: str = Form(SubmissionMode.DOCUMENTS.value),
     visit_duration_minutes: int = Form(30),
@@ -169,6 +238,7 @@ async def save_service(
     owner: Staff = Depends(current_owner),
     session: AsyncSession = Depends(db_session),
 ):
+    form = await http_request.form()
     if service_id:
         service = await session.scalar(
             select(Service).where(
@@ -177,7 +247,23 @@ async def save_service(
         )
         if service is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Услуга не найдена")
+
+    if form.get("documents_editor") == "rows":
+        rows = document_rows_from_form(form)
+        if any((not row["title"].strip() and row["description"].strip())
+               or len(row["title"].strip()) > 255 for row in rows):
+            return await _document_editor_response(
+                http_request, owner, session, form, rows,
+                "Укажите название каждого документа (до 255 символов).",
+            )
+        document_items = [
+            (row["title"].strip(), row["description"], row["is_required"])
+            for row in rows if row["title"].strip()
+        ]
     else:
+        document_items = parse_documents(documents)
+
+    if not service_id:
         service = Service(tenant_id=owner.tenant_id)
         session.add(service)
 
@@ -196,9 +282,12 @@ async def save_service(
     # Перечень переписываем целиком: у уже созданных заявок лежит собственный
     # слепок, поэтому правки задним числом им ничем не грозят.
     await session.execute(
-        delete(ServiceDocument).where(ServiceDocument.service_id == service.id)
+        delete(ServiceDocument).where(
+            ServiceDocument.service_id == service.id,
+            ServiceDocument.tenant_id == owner.tenant_id,
+        )
     )
-    for index, (doc_title, doc_description, required) in enumerate(parse_documents(documents)):
+    for index, (doc_title, doc_description, required) in enumerate(document_items):
         session.add(
             ServiceDocument(
                 tenant_id=owner.tenant_id,
@@ -260,6 +349,56 @@ async def schedule_form(
             "weekday_names": WEEKDAY_NAMES,
             "days_off": days_off,
             "today": date.today().isoformat(),
+        },
+    )
+
+
+@router.get("/calendar", response_class=HTMLResponse)
+async def calendar_page(
+    http_request: HttpRequest,
+    week: str = "",
+    owner: Staff = Depends(current_owner),
+    session: AsyncSession = Depends(db_session),
+):
+    tenant = await session.get(Tenant, owner.tenant_id)
+    tz = ZoneInfo(tenant.timezone)
+    today = datetime.now(tz).date()
+    try:
+        selected = date.fromisoformat(week) if week else today
+        first_day = selected - timedelta(days=selected.weekday())
+        previous_week = first_day - timedelta(days=7)
+        next_week = first_day + timedelta(days=7)
+    except (ValueError, OverflowError):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Некорректная дата недели")
+
+    bookings = await session.execute(
+        select(Appointment, Request)
+        .join(Request, Appointment.request_id == Request.id)
+        .where(
+            Appointment.tenant_id == owner.tenant_id,
+            Request.tenant_id == owner.tenant_id,
+            Appointment.is_cancelled.is_(False),
+            Appointment.starts_at >= datetime.combine(first_day, time.min, tzinfo=tz).astimezone(UTC),
+            Appointment.starts_at < datetime.combine(next_week, time.min, tzinfo=tz).astimezone(UTC),
+        )
+        .order_by(Appointment.starts_at, Request.public_number)
+    )
+    days = [{"date": first_day + timedelta(days=offset), "bookings": []} for offset in range(7)]
+    for appointment, request in bookings:
+        starts_at = appointment.starts_at.astimezone(tz)
+        days[(starts_at.date() - first_day).days]["bookings"].append({
+            "starts_at": starts_at, "ends_at": appointment.ends_at.astimezone(tz),
+            "request_id": request.id, "public_number": request.public_number,
+            "service_title": request.service_title,
+        })
+    return _templates().TemplateResponse(
+        http_request,
+        "admin_calendar.html",
+        {
+            "title": "Календарь приёмов", "staff": owner, "tenant": tenant,
+            "days": days, "weekday_names": WEEKDAY_NAMES, "today": today,
+            "first_day": first_day, "last_day": next_week - timedelta(days=1),
+            "previous_week": previous_week.isoformat(), "next_week": next_week.isoformat(),
         },
     )
 

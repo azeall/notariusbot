@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app import legal
 
-PHONE_RE = re.compile(r"[^\d+]")
+PHONE_RE = re.compile(r"[\s()\-]")
 
 
 class DocumentOut(BaseModel):
@@ -47,17 +47,26 @@ class RequestIn(BaseModel):
     @classmethod
     def normalize_phone(cls, value: str) -> str:
         cleaned = PHONE_RE.sub("", value)
-        digits = cleaned.lstrip("+")
-        if len(digits) < 10:
-            raise ValueError("Телефон выглядит неполным")
+        if re.fullmatch(r"[78][0-9]{10}", cleaned):
+            cleaned = "+7" + cleaned[1:]
+        elif re.fullmatch(r"[0-9]{10}", cleaned):
+            cleaned = "+7" + cleaned
+        if not re.fullmatch(r"\+[1-9][0-9]{7,14}", cleaned):
+            raise ValueError("Укажите телефон с кодом страны, например +7 999 555-01-23")
+        if cleaned.startswith("+7") and (
+            len(cleaned) != 12 or cleaned[2] == "0" or len(set(cleaned[2:])) == 1
+        ):
+            raise ValueError("Проверьте код и номер телефона")
         return cleaned
 
     @field_validator("full_name")
     @classmethod
     def strip_name(cls, value: str) -> str:
         stripped = " ".join(value.split())
-        if not stripped:
-            raise ValueError("Укажите имя")
+        if sum(ch.isalpha() for ch in stripped) < 2 or any(
+            not ch.isalpha() and ch not in " -'’.‑" for ch in stripped
+        ):
+            raise ValueError("Укажите имя буквами, без цифр и специальных символов")
         return stripped
 
     @field_validator("consent")

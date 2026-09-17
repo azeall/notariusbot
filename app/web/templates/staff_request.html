@@ -1,5 +1,7 @@
 {% extends "base_panel.html" %}
+{% block container_class %}staff-workspace{% endblock %}
 {% block content %}
+<a class="back-link" href="/staff">← Все заявки</a>
 <h1>Заявка № {{ req.public_number }}</h1>
 <p class="lead">
   {{ req.service_title }} · <span class="badge">{{ labels[req.status] }}</span>
@@ -15,11 +17,18 @@
   </div>
 {% endif %}
 
-<div class="card">
+<div class="request-layout">
+<aside class="request-summary" aria-label="Сведения и действия">
+<div class="card request-summary-card">
+  <h2>Кратко о заявке</h2>
   <table>
     <tr><th>Клиент</th><td>{{ req.client.full_name }}</td></tr>
-    <tr><th>Телефон</th><td>{{ req.client.phone }}</td></tr>
-    <tr><th>Канал</th><td>{{ req.channel.value }}</td></tr>
+    <tr><th>Телефон</th><td><a href="tel:{{ req.client.phone }}">{{ req.client.phone }}</a></td></tr>
+    <tr><th>Получена</th><td><time datetime="{{ timing.received.isoformat() }}">{{ timing.received.strftime('%d.%m.%Y %H:%M') }}</time><div class="m">{{ tenant.timezone }}</div></td></tr>
+    {% if preview or req.claimed_at %}
+      <tr><th>{{ 'Ожидает' if preview else 'До принятия' }}</th><td>{{ timing.waiting }}</td></tr>
+    {% endif %}
+    <tr><th>Канал</th><td>{{ {'widget': 'Сайт', 'telegram': 'Telegram', 'max': 'MAX'}.get(req.channel.value, req.channel.value) }}</td></tr>
     <tr><th>Подача</th><td>{{ 'личный визит' if req.submission_mode.value == 'visit' else 'документы онлайн' }}</td></tr>
     {% if req.preferred_time_note %}
       <tr><th>Время приёма</th><td>{{ req.preferred_time_note }}</td></tr>
@@ -31,16 +40,83 @@
   </table>
 </div>
 
+{% if preview %}
+  <div class="callout">
+    Предпросмотр. Заявка свободна: изучите документы и возьмите её в работу, чтобы вносить изменения.
+  </div>
+  <form method="post" action="/staff/requests/{{ req.id }}/claim" class="actions request-take">
+    <button type="submit">Взять в работу</button>
+  </form>
+{% endif %}
+{% if next_statuses and rights.can_edit and not preview %}
+  <h2>Изменить статус</h2>
+  <div class="card">
+    <form method="post" action="/staff/requests/{{ req.id }}/status">
+      <label class="field">
+        <span class="cap">Новый статус</span>
+        <select name="target">
+          {% for st in next_statuses %}
+            <option value="{{ st.value }}">{{ labels[st] }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        <span class="cap">Комментарий (виден только сотрудникам)</span>
+        <input type="text" name="comment">
+      </label>
+      <button type="submit">Применить</button>
+    </form>
+  </div>
+{% endif %}
+
+</aside>
+<section class="request-documents" aria-label="Документы и перечень">
+<h2>Документы ({{ req.attachments|length }})</h2>
+{% if not req.attachments %}
+  <div class="empty">Клиент ещё ничего не загрузил.</div>
+{% endif %}
+{% for doc in req.attachments %}
+  <div class="card row">
+    <div class="grow">
+      <div class="t">{{ doc.original_filename }}</div>
+      <div class="m">{{ (doc.size_bytes / 1024)|round|int }} КБ · {{ doc.content_type }}</div>
+    </div>
+    {% if doc.is_available %}
+      <a class="btn ghost" href="/staff/requests/{{ req.id }}/documents/{{ doc.id }}" target="_blank" rel="noopener">Открыть</a>
+      {% if staff.can_manage_catalog and not preview %}
+        {# Удалять может только нотариус (current_owner).
+           В предпросмотре до принятия заявки скрыты все действия изменения. #}
+        <form method="post"
+              action="/staff/requests/{{ req.id }}/documents/{{ doc.id }}/delete"
+              onsubmit="return confirm('Удалить документ без возможности восстановить?')"
+              style="display:inline">
+          <input type="hidden" name="reason" value="удалён нотариусом до срока">
+          <button class="ghost danger" type="submit">Удалить</button>
+        </form>
+      {% endif %}
+    {% else %}
+      <span class="badge closed">удалён</span>
+    {% endif %}
+  </div>
+{% endfor %}
+
+{% if req.submission_mode.value == 'documents' and rights.can_edit and not preview %}
+  <form method="post" action="/staff/requests/{{ req.id }}/upload-link" class="actions">
+    <button class="ghost" type="submit">Выдать ссылку на догрузку</button>
+  </form>
+{% endif %}
+
 <h2>Перечень, который видел клиент</h2>
 <div class="card">
   {% set got = req.received_documents or [] %}
   <ul class="checklist marks">
     {% for doc in req.checklist %}
       <li{% if not doc.is_required %} class="optional"{% endif %}>
-        {% if rights.can_edit %}
+        {% if rights.can_edit and not preview %}
           <form method="post" action="/staff/requests/{{ req.id }}/checklist/{{ loop.index0 }}" style="margin:0">
             <button type="submit" class="mark {{ 'on' if loop.index0 in got }}"
-                    title="{{ 'Снять отметку' if loop.index0 in got else 'Отметить полученным' }}">
+                    title="{{ 'Снять отметку' if loop.index0 in got else 'Отметить полученным' }}"
+                    aria-label="{{ 'Снять отметку: ' if loop.index0 in got else 'Отметить полученным: ' }}{{ doc.title }}">
               {{ '✓' if loop.index0 in got else '' }}
             </button>
           </form>
@@ -70,44 +146,8 @@
   {% endif %}
 </div>
 
-<h2>Документы ({{ req.attachments|length }})</h2>
-{% if not req.attachments %}
-  <div class="empty">Клиент ещё ничего не загрузил.</div>
-{% endif %}
-{% for doc in req.attachments %}
-  <div class="card row">
-    <div class="grow">
-      <div class="t">{{ doc.original_filename }}</div>
-      <div class="m">{{ (doc.size_bytes / 1024)|round|int }} КБ · {{ doc.content_type }}</div>
-    </div>
-    {% if doc.is_available %}
-      <a class="btn ghost" href="/staff/requests/{{ req.id }}/documents/{{ doc.id }}" target="_blank" rel="noopener">Открыть</a>
-      {% if staff.can_manage_catalog %}
-        {# Ровно то же право, что требует маршрут (current_owner). Условие
-           здесь и проверка там обязаны совпадать: разойдутся — кнопка либо
-           появится там, где нажатие даст отказ, либо пропадёт там, где всё
-           разрешено. Удалять может только нотариус: действие необратимо,
-           и перед клиентом за данные отвечает он. #}
-        <form method="post"
-              action="/staff/requests/{{ req.id }}/documents/{{ doc.id }}/delete"
-              onsubmit="return confirm('Удалить {{ doc.original_filename }} без возможности восстановить?')"
-              style="display:inline">
-          <input type="hidden" name="reason" value="удалён нотариусом до срока">
-          <button class="ghost danger" type="submit">Удалить</button>
-        </form>
-      {% endif %}
-    {% else %}
-      <span class="badge closed">удалён</span>
-    {% endif %}
-  </div>
-{% endfor %}
-
-{% if req.submission_mode.value == 'documents' and rights.can_edit %}
-  <form method="post" action="/staff/requests/{{ req.id }}/upload-link" class="actions">
-    <button class="ghost" type="submit">Выдать ссылку на догрузку</button>
-  </form>
-{% endif %}
-
+</section>
+<section class="request-collaboration" aria-label="Совместная работа">
 <h2>Кто ведёт заявку</h2>
 <div class="card">
   <table>
@@ -120,7 +160,7 @@
         <th>Вместе</th>
         <td>
           {{ p.staff.full_name }}
-          {% if rights.can_manage_participants %}
+          {% if rights.can_manage_participants and not preview %}
             <form method="post" action="/staff/requests/{{ req.id }}/participants/{{ p.id }}/remove"
                   style="display:inline;margin-left:10px">
               <button class="danger" type="submit">Отключить</button>
@@ -132,7 +172,7 @@
   </table>
 </div>
 
-{% if not rights.can_edit %}
+{% if not rights.can_edit and not preview %}
   <div class="callout">
     Заявку ведёт другой сотрудник, поэтому менять её нельзя — так двое
     не правят одно дело вслепую. Если нужна совместная работа, попроситесь:
@@ -140,7 +180,7 @@
   </div>
 {% endif %}
 
-{% if rights.can_ask_to_join %}
+{% if rights.can_ask_to_join and not preview %}
   <div class="card">
     <form method="post" action="/staff/requests/{{ req.id }}/join">
       <label class="field">
@@ -157,7 +197,7 @@
 {% endif %}
 
 {% set waiting = participants | selectattr('status.value', 'equalto', 'requested') | list %}
-{% if waiting and rights.can_manage_participants %}
+{% if waiting and rights.can_manage_participants and not preview %}
   <h2>Просятся в помощь</h2>
   {% for p in waiting %}
     <div class="card row">
@@ -176,7 +216,7 @@
   {% endfor %}
 {% endif %}
 
-{% if rights.can_manage_participants and colleagues %}
+{% if rights.can_manage_participants and colleagues and not preview %}
   <div class="card">
     <form method="post" action="/staff/requests/{{ req.id }}/participants">
       <label class="field">
@@ -192,37 +232,19 @@
   </div>
 {% endif %}
 
-{% if next_statuses and rights.can_edit %}
-  <h2>Изменить статус</h2>
-  <div class="card">
-    <form method="post" action="/staff/requests/{{ req.id }}/status">
-      <label class="field">
-        <span class="cap">Новый статус</span>
-        <select name="target">
-          {% for st in next_statuses %}
-            <option value="{{ st.value }}">{{ labels[st] }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <label class="field">
-        <span class="cap">Комментарий (виден только сотрудникам)</span>
-        <input type="text" name="comment">
-      </label>
-      <button type="submit">Применить</button>
-    </form>
-  </div>
-{% endif %}
-
+</section>
+<section class="request-history" aria-label="История заявки">
 <h2>История</h2>
 <ul class="timeline">
   {% for event in req.events %}
     <li>
       <div>{{ labels.get(event.to_status, event.to_status) if event.to_status else '' }}
         {%- if event.comment %} — {{ event.comment }}{% endif %}</div>
-      <div class="when">{{ event.created_at.strftime('%d.%m.%Y %H:%M') }} · {{ event.actor_label or '—' }}</div>
+      <div class="when">{{ event.created_at.astimezone(timing.received.tzinfo).strftime('%d.%m.%Y %H:%M') }} · {{ event.actor_label or '—' }}</div>
     </li>
   {% endfor %}
 </ul>
 
-<div class="actions"><a class="btn ghost" href="/staff">← ко всем заявкам</a></div>
+</section>
+</div>
 {% endblock %}

@@ -1,6 +1,9 @@
 {% extends "base_panel.html" %}
+{% block extra_css %}<link rel="stylesheet" href="/static/admin.css">{% endblock %}
 {% block content %}
-<h1>{{ 'Новая услуга' if not service else 'Изменить услугу' }}</h1>
+<div class="admin-page">
+<h1>{{ 'Новая услуга' if is_new else 'Изменить услугу' }}</h1>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
 
 <form method="post" action="/admin/services">
   <input type="hidden" name="service_id" value="{{ service.id if service else '' }}">
@@ -9,17 +12,6 @@
     <span class="cap">Название — так его увидит клиент</span>
     <input type="text" name="title" required value="{{ service.title if service else '' }}">
   </label>
-
-  <div class="grid2">
-    <label class="field">
-      <span class="cap">Короткий код (латиницей)</span>
-      <input type="text" name="slug" required value="{{ service.slug if service else '' }}">
-    </label>
-    <label class="field">
-      <span class="cap">Порядок в списке</span>
-      <input type="number" name="sort_order" value="{{ service.sort_order if service else 0 }}">
-    </label>
-  </div>
 
   <label class="field">
     <span class="cap">Описание</span>
@@ -66,15 +58,54 @@
     <span class="note">Клиент пишет «на машину» — попадает на «Доверенность на транспортное средство».</span>
   </label>
 
-  <label class="field">
-    <span class="cap">Перечень документов</span>
-    <textarea name="documents" spellcheck="false">{{ documents_text }}</textarea>
-    <span class="note">
-      Одна строка — один документ. Знак <b>?</b> в начале строки делает документ необязательным,
-      тире <b>—</b> отделяет пояснение.<br>
-      Например: <code>Паспорт доверителя — все страницы</code> и <code>? Согласие супруга</code>
-    </span>
-  </label>
+  <section class="document-editor" aria-labelledby="documents-heading">
+    <h2 id="documents-heading">Перечень документов</h2>
+    <p class="lead">Укажите название и пояснение для клиента. Снимите отметку, если документ нужен не всегда.</p>
+    <input type="hidden" name="documents_editor" value="rows">
+    {% for doc in document_rows %}
+      <fieldset class="document-row">
+        <legend>Документ {{ loop.index }}</legend>
+        <input type="hidden" name="document_row" value="{{ loop.index0 }}">
+        <label class="field">
+          <span class="cap">Название документа</span>
+          <input type="text" name="document_title_{{ loop.index0 }}" maxlength="255" value="{{ doc.title }}">
+        </label>
+        <label class="field">
+          <span class="cap">Пояснение (необязательно)</span>
+          <textarea name="document_description_{{ loop.index0 }}" rows="2">{{ doc.description }}</textarea>
+        </label>
+        <div class="document-actions">
+          <label class="admin-check">
+            <input type="checkbox" name="document_required_{{ loop.index0 }}" value="1" {% if doc.is_required %}checked{% endif %}>
+            Обязательный документ
+          </label>
+          <button class="danger" type="submit" name="document_action" value="remove:{{ loop.index0 }}"
+                  formaction="/admin/services/documents#documents-heading" formnovalidate
+                  aria-label="Убрать документ {{ loop.index }}">Убрать</button>
+        </div>
+      </fieldset>
+    {% else %}
+      <p class="empty">Документы не добавлены.</p>
+    {% endfor %}
+    <button class="ghost" type="submit" name="document_action" value="add"
+            formaction="/admin/services/documents#documents-heading" formnovalidate>Добавить документ</button>
+    <p class="admin-note">Добавление и удаление сохраняют введённые поля на странице. Чтобы применить изменения, нажмите «Сохранить».</p>
+  </section>
+
+  <details class="admin-advanced">
+    <summary>Дополнительные настройки</summary>
+    <div class="grid2">
+      <label class="field">
+        <span class="cap">Короткий код</span>
+        <input type="text" name="slug" maxlength="128" value="{{ service.slug if service else '' }}">
+        <span class="note">Можно оставить пустым — код создастся из названия.</span>
+      </label>
+      <label class="field">
+        <span class="cap">Порядок в списке</span>
+        <input type="number" name="sort_order" value="{{ service.sort_order if service else 0 }}">
+      </label>
+    </div>
+  </details>
 
   <label class="field">
     <input type="checkbox" name="is_active" value="1"
@@ -87,4 +118,5 @@
     <a class="btn ghost" href="/admin">Отмена</a>
   </div>
 </form>
+</div>
 {% endblock %}

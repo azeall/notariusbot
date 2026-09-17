@@ -1,0 +1,39 @@
+{% extends "base_panel.html" %}
+{% block extra_css %}<link rel="stylesheet" href="/static/admin.css">{% endblock %}
+{% block content %}
+<div class="admin-page">
+  <h1>Календарь приёмов</h1>
+  <p class="lead">Забронированные приёмы. Время указано в часовом поясе {{ tenant.timezone }}.</p>
+  <p><a href="/admin/schedule">Настроить рабочие часы и выходные</a></p>
+
+  <nav class="calendar-navigation" aria-label="Недели календаря">
+    <a class="btn ghost" href="/admin/calendar?week={{ previous_week }}">← Предыдущая неделя</a>
+    <a class="btn ghost" href="/admin/calendar">Текущая неделя</a>
+    <a class="btn ghost" href="/admin/calendar?week={{ next_week }}">Следующая неделя →</a>
+  </nav>
+  <h2>{{ first_day.strftime('%d.%m.%Y') }} — {{ last_day.strftime('%d.%m.%Y') }}</h2>
+
+  <div class="calendar-days">
+    {% for day in days %}
+      <section class="calendar-day{% if day.date == today %} calendar-today{% endif %}"
+               aria-labelledby="day-{{ day.date.isoformat() }}">
+        <h3 id="day-{{ day.date.isoformat() }}">
+          {{ weekday_names[day.date.weekday()] }}
+          <span>{{ day.date.strftime('%d.%m') }}{% if day.date == today %} · Сегодня{% endif %}</span>
+        </h3>
+        {% for booking in day.bookings %}
+          <a class="calendar-booking" href="/staff/requests/{{ booking.request_id }}">
+            <span class="booking-time">
+              <time datetime="{{ booking.starts_at.isoformat() }}">{{ booking.starts_at.strftime('%H:%M') }}</time>–<time datetime="{{ booking.ends_at.isoformat() }}">{% if booking.ends_at.date() != day.date %}{{ booking.ends_at.strftime('%d.%m') }} {% endif %}{{ booking.ends_at.strftime('%H:%M') }}</time>
+            </span>
+            <span>Заявка № {{ booking.public_number }}</span>
+            <span class="booking-service">{{ booking.service_title }}</span>
+          </a>
+        {% else %}
+          <p class="empty">Нет записей</p>
+        {% endfor %}
+      </section>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

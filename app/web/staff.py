@@ -1,5 +1,6 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request as HttpRequest, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -15,6 +16,7 @@ from app.domain.storage import DocumentStorage
 from app.models import (
     Attachment,
     AuditLog,
+    Client,
     PARTICIPATION_LABELS,
     ParticipationStatus,
     Request,
@@ -188,6 +190,18 @@ async def change_password(
     return render(None, done=True)
 
 
+def _request_timing(request: Request, now: datetime, tz: ZoneInfo) -> dict:
+    end = request.claimed_at or request.closed_at or now
+    minutes = max(0, int((end - request.created_at).total_seconds() // 60))
+    if minutes >= 1440:
+        waiting = f"{minutes // 1440} д {minutes % 1440 // 60} ч"
+    elif minutes >= 60:
+        waiting = f"{minutes // 60} ч {minutes % 60} мин"
+    else:
+        waiting = f"{minutes} мин" if minutes else "менее минуты"
+    return {"received": request.created_at.astimezone(tz), "waiting": waiting}
+
+
 @router.get("", response_class=HTMLResponse)
 async def queue(
     http_request: HttpRequest,
@@ -205,6 +219,54 @@ async def queue(
         RequestStatus.AWAITING_DOCUMENTS,
         RequestStatus.AWAITING_VISIT,
     ]
+    tenant = await session.get(Tenant, staff.tenant_id)
+    tz = ZoneInfo(tenant.timezone)
+    filters = {key: http_request.query_params.get(key, "").strip()
+               for key in ("q", "status", "date_from", "date_to", "assignee")}
+    conditions = [Request.tenant_id == staff.tenant_id]
+    filter_error = None
+    queue_statuses = [RequestStatus.NEW, *open_statuses]
+    try:
+        if filters["status"]:
+            selected_status = RequestStatus(filters["status"])
+            if selected_status not in queue_statuses:
+                raise ValueError
+            conditions.append(Request.status == selected_status)
+        start = date.fromisoformat(filters["date_from"]) if filters["date_from"] else None
+        end = date.fromisoformat(filters["date_to"]) if filters["date_to"] else None
+        if start and end and start > end:
+            raise ValueError
+        if start:
+            conditions.append(Request.created_at >= datetime.combine(start, time.min, tz))
+        if end:
+            conditions.append(Request.created_at <= datetime.combine(end, time.max, tz))
+        if filters["assignee"] == "unassigned":
+            conditions.append(Request.assigned_staff_id.is_(None))
+        elif filters["assignee"]:
+            conditions.append(Request.assigned_staff_id == uuid.UUID(filters["assignee"]))
+    except ValueError:
+        filter_error = "Проверьте фильтры: даты должны идти по порядку, статус и сотрудник — из списка."
+        conditions.append(false())
+
+    if filters["q"]:
+        query = filters["q"]
+        # В локали C lower/ILIKE не меняют регистр кириллицы.
+        normalized_name = func.lower(func.translate(
+            Client.full_name,
+            "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ",
+            "абвгдеёжзийклмнопрстуфхцчшщъыьэюя",
+        ))
+        name_match = normalized_name.contains(query.lower(), autoescape=True)
+        # Номер ищется независимо от пробелов, скобок и дефисов.
+        digits = "".join(c for c in query if c.isdecimal())
+        if len(digits) == 11 and digits[0] in "78":
+            digits = digits[1:]
+        phone_match = (func.regexp_replace(Client.phone, "[^0-9]", "", "g")
+                       .contains(digits, autoescape=True)) if digits else false()
+        conditions.append(Request.client.has(
+            (Client.tenant_id == staff.tenant_id) & or_(name_match, phone_match)
+        ))
+
     common = (selectinload(Request.client), selectinload(Request.attachments),
               selectinload(Request.assigned_staff), selectinload(Request.participants))
 
@@ -212,7 +274,7 @@ async def queue(
         await session.scalars(
             select(Request)
             .where(
-                Request.tenant_id == staff.tenant_id,
+                *conditions,
                 Request.status == RequestStatus.NEW,
             )
             .options(*common)
@@ -223,7 +285,9 @@ async def queue(
     # Свои — это и те, что веду, и те, где помогаю.
     helping_ids = list(
         await session.scalars(
-            select(RequestParticipant.request_id).where(
+            select(RequestParticipant.request_id).join(Request).where(
+                Request.tenant_id == staff.tenant_id,
+                RequestParticipant.tenant_id == staff.tenant_id,
                 RequestParticipant.staff_id == staff.id,
                 RequestParticipant.status == ParticipationStatus.ACTIVE,
             )
@@ -233,7 +297,7 @@ async def queue(
         await session.scalars(
             select(Request)
             .where(
-                Request.tenant_id == staff.tenant_id,
+                *conditions,
                 Request.status.in_(open_statuses),
                 or_(
                     Request.assigned_staff_id == staff.id,
@@ -251,7 +315,7 @@ async def queue(
         for r in await session.scalars(
             select(Request)
             .where(
-                Request.tenant_id == staff.tenant_id,
+                *conditions,
                 Request.status.in_(open_statuses),
                 Request.assigned_staff_id.is_not(None),
             )
@@ -267,6 +331,8 @@ async def queue(
             select(RequestParticipant)
             .join(Request, Request.id == RequestParticipant.request_id)
             .where(
+                Request.tenant_id == staff.tenant_id,
+                RequestParticipant.tenant_id == staff.tenant_id,
                 RequestParticipant.status == ParticipationStatus.REQUESTED,
                 Request.assigned_staff_id == staff.id,
             )
@@ -278,7 +344,14 @@ async def queue(
         )
     )
 
-    tenant = await session.get(Tenant, staff.tenant_id)
+    assignees = list(await session.scalars(
+        select(Staff).where(Staff.tenant_id == staff.tenant_id).order_by(Staff.full_name)
+    ))
+    # Баннер сравнивает всю очередь с тем же счётчиком, даже при активном поиске.
+    new_count = await session.scalar(select(func.count(Request.id)).where(
+        Request.tenant_id == staff.tenant_id, Request.status == RequestStatus.NEW,
+    ))
+    now = datetime.now(UTC)
     return _templates().TemplateResponse(
         http_request,
         "staff_queue.html",
@@ -291,7 +364,15 @@ async def queue(
             "others": others,
             "pending": pending,
             "labels": STATUS_LABELS,
+            "filters": filters,
+            "filters_active": any(filters.values()),
+            "filter_error": filter_error,
+            "queue_statuses": queue_statuses,
+            "assignees": assignees,
+            "new_count": new_count or 0,
+            "timing": {r.id: _request_timing(r, now, tz) for r in unclaimed + mine + others},
         },
+        status_code=status.HTTP_400_BAD_REQUEST if filter_error else status.HTTP_200_OK,
     )
 
 
@@ -359,10 +440,11 @@ async def request_detail(
     request = await _load_request(session, staff, request_id)
     rights = access.evaluate(request, staff)
     tenant = await session.get(Tenant, staff.tenant_id)
+    preview = request.status == RequestStatus.NEW and request.assigned_staff_id is None
 
     # Нотариусу показываем, кого ещё можно подключить.
     colleagues = []
-    if rights.can_manage_participants:
+    if rights.can_manage_participants and not preview:
         busy = {p.staff_id for p in request.participants if p.is_active}
         busy.add(request.assigned_staff_id)
         colleagues = [
@@ -391,6 +473,8 @@ async def request_detail(
             "participants": request.participants,
             "part_labels": PARTICIPATION_LABELS,
             "colleagues": colleagues,
+            "preview": preview,
+            "timing": _request_timing(request, datetime.now(UTC), ZoneInfo(tenant.timezone)),
         },
     )
 

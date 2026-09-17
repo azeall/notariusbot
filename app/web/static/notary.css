@@ -139,3 +139,97 @@ ul.checklist.marks .grow { flex: 1; }
 }
 .mark:hover { border-color: var(--gold, #b89a5a); }
 .mark.on { background: var(--gold, #b89a5a); border-color: var(--gold, #b89a5a); }
+
+/* Очередь и дело: документы остаются основным рабочим пространством. */
+.staff-workspace { max-width: 1280px; }
+.staff-workspace #fresh[hidden] { display: none; }
+.back-link { display: inline-block; margin-bottom: 18px; }
+.queue-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 18px;
+  margin: 24px 0;
+}
+.queue-filters label.field { margin: 0; }
+.queue-filters .filter-actions { align-items: flex-end; margin: 0; }
+.filter-note { grid-column: 1 / -1; margin: 0; color: var(--slate); font-size: 13px; }
+.filter-note.error { color: var(--danger); }
+input[type=search], input[type=date] {
+  width: 100%; min-width: 0; padding: 10px 12px;
+  background: var(--navy-dark); color: var(--cream); color-scheme: dark;
+  border: 1px solid rgba(184,154,90,.4); border-radius: 9px; font: inherit;
+}
+input::placeholder, textarea::placeholder { color: var(--slate); opacity: 1; }
+.queue-time, time { font-variant-numeric: tabular-nums; }
+.request-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(290px, 350px);
+  grid-template-areas: "documents summary" "collaboration summary" "history history";
+  gap: 16px 28px;
+  align-items: start;
+}
+.request-summary { grid-area: summary; min-width: 0; }
+.request-documents { grid-area: documents; min-width: 0; }
+.request-collaboration { grid-area: collaboration; min-width: 0; }
+.request-history { grid-area: history; min-width: 0; }
+.request-layout h2:first-child { margin-top: 0; }
+.request-summary-card h2 { margin-bottom: 10px; }
+.request-summary-card th, .request-summary-card td { padding: 9px 0; vertical-align: top; }
+.request-summary-card th { width: 34%; padding-right: 12px; }
+.request-summary-card td { overflow-wrap: anywhere; }
+.request-summary-card tr:last-child th, .request-summary-card tr:last-child td { border-bottom: 0; }
+.request-take { margin-bottom: 22px; }
+.request-take button { width: 100%; }
+.staff-workspace .card .t, .staff-workspace .card .m,
+.request-layout .grow, .request-history { overflow-wrap: anywhere; }
+.request-layout .card.row { flex-wrap: wrap; }
+.request-layout .card.row .grow { flex-basis: 220px; }
+.request-layout .callout:first-child { margin-top: 0; }
+.staff-workspace .card.row > form { flex-shrink: 0; }
+.staff-workspace .card.row > .btn { flex-shrink: 0; }
+.audit-table { overflow-x: auto; }
+
+/* Видимый фокус и доступная навигация без скрытых пунктов на телефоне. */
+a:focus-visible, button:focus-visible, input:focus-visible,
+select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--gold-light); outline-offset: 3px;
+}
+.topbar nav { flex-wrap: wrap; align-items: center; gap: 6px 18px; min-width: 0; }
+.topbar nav a { display: inline-flex; align-items: center; min-height: 44px; }
+.topbar nav a[aria-current="page"] { color: var(--gold-light); text-decoration: underline; text-underline-offset: 7px; }
+.topbar .brand, .topbar .who { overflow-wrap: anywhere; min-width: 0; }
+button, .btn { min-height: 44px; }
+button.mark { min-width: 32px; min-height: 32px; }
+.mark:not(button) { cursor: default; }
+
+@media (max-width: 860px) {
+  .staff-member { flex-wrap: wrap; }
+  .staff-member > .grow { flex-basis: 100%; overflow-wrap: anywhere; }
+  .topbar { gap: 10px 16px; padding: 12px 20px; }
+  .topbar nav { order: 3; flex-basis: 100%; }
+  .request-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "summary" "documents" "collaboration" "history";
+    gap: 24px;
+  }
+  .queue-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .queue-search { grid-column: 1 / -1; }
+  .staff-workspace .card.row { flex-wrap: wrap; }
+  .staff-workspace .card.row > .grow { flex-basis: 100%; }
+}
+
+@media (max-width: 520px) {
+  .container { padding: 22px 16px 40px; }
+  .topbar { padding: 10px 16px; }
+  .topbar .brand { flex-basis: 100%; }
+  .topbar .who { flex: 1; }
+  .topbar nav { gap: 2px 18px; }
+  .queue-filters { grid-template-columns: minmax(0, 1fr); padding: 16px; }
+  .queue-filters .filter-actions { align-items: center; }
+  .card { padding: 14px; }
+  .grid2 { grid-template-columns: minmax(0, 1fr); }
+  input[type=text], input[type=email], input[type=password], input[type=tel],
+  input[type=number], input[type=time], input[type=date], input[type=search],
+  textarea, select { font-size: 16px; }
+  .request-summary-card th { width: 36%; }
+}

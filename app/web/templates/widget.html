@@ -18,13 +18,18 @@
       {%- if tenant.city %}{{ tenant.city }}{% endif %}
       {%- if tenant.phone %} · {{ tenant.phone }}{% endif %}
     </div>
+    {% if tenant.slug == 'demo' %}<div class="demo-note">Демонстрация сервиса. Используйте вымышленные данные; заявки сохраняются в тестовом кабинете.</div>{% endif %}
+    <div class="progress" id="progress" aria-live="polite"></div>
+    <button type="button" class="back" id="back" hidden>← Назад</button>
   </header>
 
-  <div class="chat scroll" id="chat"></div>
+  <div class="chat scroll" id="conversation">
+    <div class="thread" id="chat"></div>
+    <div class="choices" id="choices"></div>
+  </div>
 
   <div class="composer">
-    <div class="err" id="err"></div>
-    <div class="choices scroll" id="choices"></div>
+    <div class="err" id="err" role="alert"></div>
     <div class="row" id="input-row" hidden>
       <input type="text" id="field" autocomplete="off">
       <button class="send" type="button" id="send" aria-label="Отправить">→</button>
@@ -65,13 +70,32 @@
   var field = document.getElementById('field');
   var send = document.getElementById('send');
   var err = document.getElementById('err');
+  var conversation = document.getElementById('conversation');
+  var back = document.getElementById('back');
+  var progress = document.getElementById('progress');
 
   var state = { service: null, slot: null, name: '', phone: '' };
   var onText = null;
+  var backAction = null;
+  var revision = 0;
+  var sending = false;
+
+  back.addEventListener('click', function () { if (backAction && !sending) backAction(); });
+
+  function step(label, previous) {
+    revision += 1;
+    clearChoices();
+    hideInput();
+    err.textContent = '';
+    chat.innerHTML = '';
+    progress.textContent = label;
+    backAction = previous;
+    back.hidden = !previous;
+  }
 
   // --- реплики ---------------------------------------------------------
 
-  function scroll() { chat.scrollTop = chat.scrollHeight; }
+  function scroll() { conversation.scrollTop = conversation.scrollHeight; }
 
   function bubble(cls, build) {
     var el = document.createElement('div');
@@ -106,9 +130,11 @@
   // Небольшая пауза перед ответом: без неё реплики появляются рывком
   // и читаются хуже, чем настоящая переписка.
   function reply(text, next) {
+    var currentRevision = revision;
     var dots = typing();
     setTimeout(function () {
       dots.remove();
+      if (revision !== currentRevision) return;
       if (text) say(text);
       if (next) next();
     }, 340);
@@ -136,13 +162,19 @@
       onPick();
     });
     choices.appendChild(b);
+    if (choices.children.length === 1) scroll();
     return b;
   }
 
-  function ask(placeholder, handler) {
+  function ask(placeholder, handler, value, type) {
     onText = handler;
-    field.value = '';
+    field.type = type || 'text';
+    field.inputMode = type === 'tel' ? 'tel' : 'text';
+    field.autocomplete = type === 'tel' ? 'tel' : 'off';
+    field.maxLength = type === 'tel' ? 32 : 255;
+    field.value = value || '';
     field.placeholder = placeholder;
+    field.setAttribute('aria-label', placeholder);
     row.hidden = false;
     field.focus();
   }
@@ -158,13 +190,15 @@
     var value = field.value.trim();
     if (!value || !onText) return;
     var handler = onText;
-    field.value = '';
     handler(value);
   }
 
   // --- шаги ------------------------------------------------------------
 
   function start() {
+    step('Шаг 1 · Выберите услугу', null);
+    state.service = null;
+    state.slot = null;
     reply('Здравствуйте. Подскажу, какие документы нужны, и приму заявку.', function () {
       reply('Напишите своими словами, что нужно — например «доверенность на машину». Или выберите из списка.', function () {
         loadAll();
@@ -190,16 +224,26 @@
   }
 
   function loadAll() {
+    err.textContent = '';
+    var currentRevision = revision;
     fetch(API + '/services')
-      .then(function (r) { return r.json(); })
-      .then(function (items) { listServices(items.slice(0, 12)); })
-      .catch(function () { err.textContent = 'Не удалось загрузить список услуг.'; });
+      .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+      .then(function (items) { if (revision === currentRevision) listServices(items); })
+      .catch(function () {
+        if (revision !== currentRevision) return;
+        err.textContent = 'Не удалось загрузить список услуг.';
+        choice('Загрузить услуги снова', null, loadAll, 'quiet');
+      });
   }
 
   function search(text) {
+    err.textContent = '';
+    var currentRevision = ++revision;
+    clearChoices();
     fetch(API + '/services/search?q=' + encodeURIComponent(text))
-      .then(function (r) { return r.json(); })
+      .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
       .then(function (items) {
+        if (revision !== currentRevision) return;
         if (!items.length) {
           reply('Не нашёл подходящей услуги по этим словам. Посмотрите полный список или напишите иначе.', function () {
             loadAll();
@@ -211,12 +255,20 @@
         }
         reply(items.length === 1 ? 'Похоже, вам нужно это:' : 'Вот что подходит:', function () {
           listServices(items);
+          choice('Все услуги', null, start, 'quiet');
+          ask('Уточнить запрос', function (again) { hideInput(); search(again); });
         });
       })
-      .catch(function () { err.textContent = 'Нет связи с сервером.'; });
+      .catch(function () {
+        if (revision !== currentRevision) return;
+        err.textContent = 'Нет связи с сервером.';
+        choice('Повторить поиск', null, function () { search(text); }, 'primary');
+        choice('Все услуги', null, start, 'quiet');
+      });
   }
 
   function pick(svc) {
+    step('Шаг 1 · Документы для услуги', start);
     state.service = svc;
     state.slot = null;
     you(svc.title);
@@ -268,90 +320,127 @@
 
       choice('Оформить заявку', null, askName, 'primary');
       choice('Выбрать другую услугу', null, function () {
-        reply('Хорошо. Вот все услуги:', loadAll);
+        start();
       }, 'quiet');
     });
   }
 
   function askName() {
+    step('Шаг 2 · Ваши контакты', function () { pick(state.service); });
     reply('Как вас зовут? Напишите фамилию и имя.', function () {
       ask('Фамилия и имя', function (value) {
-        if (value.length < 2) { err.textContent = 'Слишком коротко.'; return; }
+        value = value.trim().replace(/\s+/g, ' ');
+        if ((value.match(/\p{L}/gu) || []).length < 2 || /[^\p{L} '\u2019.\u2011-]/u.test(value)) {
+          err.textContent = 'Укажите имя буквами, без цифр и специальных символов.'; return;
+        }
         err.textContent = '';
         state.name = value;
         you(value);
         askPhone();
-      });
+      }, state.name);
     });
   }
 
   function askPhone() {
+    step('Шаг 2 · Телефон для связи', askName);
     reply('Оставьте номер телефона для связи.', function () {
       ask('+7 900 000-00-00', function (value) {
-        var digits = value.replace(/\D/g, '');
-        if (digits.length < 10) { err.textContent = 'Номер выглядит неполным.'; return; }
+        var phone = value.replace(/[\s()-]/g, '');
+        if (/^[78][0-9]{10}$/.test(phone)) phone = '+7' + phone.slice(1);
+        else if (/^[0-9]{10}$/.test(phone)) phone = '+7' + phone;
+        if (!/^\+[1-9][0-9]{7,14}$/.test(phone) ||
+            (phone.indexOf('+7') === 0 && (!/^\+7[1-9][0-9]{9}$/.test(phone) || /^\+7([0-9])\1{9}$/.test(phone)))) {
+          err.textContent = 'Проверьте номер с кодом страны, например +7 999 555-01-23.'; return;
+        }
         err.textContent = '';
-        state.phone = value;
-        you(value);
+        state.phone = phone;
+        you(phone);
         hideInput();
-        askConsent();
-      });
+        if (state.service.submission_mode === 'visit' && !state.slot) chooseTime();
+        else review();
+      }, state.phone, 'tel');
     });
   }
 
-  // Согласие даётся до создания заявки, и человек должен иметь возможность
-  // прочитать, на что соглашается. Одной фразы в пузыре для этого мало:
-  // закон требует назвать оператора, цели и перечень данных, а столько текста
-  // в переписке не читают. Поэтому смысл — здесь, полный текст — по ссылке.
-  function askConsent() {
-    reply(null, function () {
-      bubble('bot', function (el) {
-        var p = document.createElement('div');
-        p.textContent = CONSENT_TEXT;
-        p.style.whiteSpace = 'pre-line';
-        el.appendChild(p);
-        var a = document.createElement('a');
-        a.href = PRIVACY;
-        a.target = '_blank';
-        a.rel = 'noopener';
-        a.textContent = 'Политика обработки персональных данных';
-        el.appendChild(a);
-      });
-      choice('Согласен', null, function () {
-        you('Согласен');
-        afterConsent();
-      }, 'primary');
-      choice('Отказаться', null, function () {
-        you('Отказаться');
-        reply('Хорошо. Без согласия заявку принять нельзя, но вы всегда можете позвонить нотариусу напрямую.');
-      }, 'quiet');
-    });
-  }
-
-  function afterConsent() {
-    if (state.service.submission_mode !== 'visit') { submit(); return; }
-
+  function chooseTime() {
+    step('Шаг 3 · Время приёма', askPhone);
+    state.slot = null;
+    var currentRevision = revision;
     reply('Выберите удобное время приёма.', function () {
       fetch(API + '/services/' + state.service.id + '/slots')
-        .then(function (r) { return r.json(); })
+        .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
         .then(function (slots) {
+          if (revision !== currentRevision) return;
           if (!slots.length) {
-            reply('Свободного времени на ближайшие две недели нет. Оставлю заявку — сотрудник свяжется и подберёт время.', submit);
+            say('На ближайшие две недели свободного времени нет. Позвоните в контору, чтобы подобрать время.');
+            choice('Обновить время', null, chooseTime, 'quiet');
             return;
           }
           slots.forEach(function (slot) {
             choice(slot.label, null, function () {
               state.slot = slot.starts_at;
-              you(slot.label);
-              submit();
+              state.slotLabel = slot.label;
+              review();
             }, 'slot');
           });
         })
-        .catch(function () { err.textContent = 'Не удалось загрузить свободное время.'; });
+        .catch(function () {
+          if (revision !== currentRevision) return;
+          err.textContent = 'Не удалось загрузить свободное время.';
+          choice('Попробовать снова', null, chooseTime, 'quiet');
+        });
     });
   }
 
+  function review() {
+    var visit = state.service.submission_mode === 'visit';
+    step('Шаг ' + (visit ? '4' : '3') + ' · Проверьте заявку', visit ? chooseTime : askPhone);
+    bubble('bot review', function (el) {
+      var title = document.createElement('div');
+      title.className = 'title';
+      title.textContent = 'Всё верно?';
+      el.appendChild(title);
+      var summary = document.createElement('dl');
+      [['Услуга', state.service.title], ['Имя', state.name], ['Телефон', state.phone],
+       ['Подача', visit ? state.slotLabel : 'Документы онлайн']].forEach(function (item) {
+        var dt = document.createElement('dt'); dt.textContent = item[0];
+        var dd = document.createElement('dd'); dd.textContent = item[1];
+        summary.appendChild(dt); summary.appendChild(dd);
+      });
+      el.appendChild(summary);
+      var details = document.createElement('details');
+      var caption = document.createElement('summary');
+      caption.textContent = 'Полный текст согласия на обработку данных';
+      details.appendChild(caption);
+      var text = document.createElement('div');
+      text.className = 'consent-text'; text.textContent = CONSENT_TEXT;
+      details.appendChild(text); el.appendChild(details);
+      var a = document.createElement('a');
+      a.href = PRIVACY; a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = 'Политика обработки персональных данных';
+      el.appendChild(a);
+      var label = document.createElement('label'); label.className = 'consent-check';
+      var checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.id = 'consent';
+      label.appendChild(checkbox);
+      label.appendChild(document.createTextNode('Я прочитал(а) текст и даю согласие на обработку персональных данных'));
+      el.appendChild(label);
+    });
+    var submitButton = choice('Отправить заявку', 'Данные попадут в кабинет нотариуса', submit, 'primary');
+    submitButton.disabled = true;
+    document.getElementById('consent').addEventListener('change', function (event) {
+      submitButton.disabled = !event.target.checked;
+    });
+    choice('Изменить имя', null, askName, 'quiet');
+    choice('Изменить телефон', null, askPhone, 'quiet');
+    if (visit) choice('Изменить время', null, chooseTime, 'quiet');
+    choice('Выбрать другую услугу', null, start, 'quiet');
+    conversation.scrollTop = 0;
+  }
+
   function submit() {
+    if (sending || !document.getElementById('consent')?.checked) return;
+    sending = true;
+    back.disabled = true;
     hideInput();
     clearChoices();
     var dots = typing();
@@ -374,23 +463,29 @@
       .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
       .then(function (res) {
         dots.remove();
+        sending = false;
+        back.disabled = false;
         if (!res.ok) {
           var detail = res.body.detail;
           if (Array.isArray(detail)) detail = detail.map(function (d) { return d.msg; }).join('. ');
           say(detail || 'Не удалось отправить заявку.');
-          choice('Попробовать снова', null, submit, 'primary');
+          choice('Проверить заявку', null, review, 'primary');
+          if (state.service.submission_mode === 'visit') choice('Выбрать другое время', null, chooseTime, 'quiet');
           return;
         }
         done(res.body);
       })
       .catch(function () {
         dots.remove();
-        say('Нет связи с сервером.');
-        choice('Попробовать снова', null, submit, 'primary');
+        sending = false;
+        back.disabled = false;
+        say('Не удалось получить ответ. Заявка могла сохраниться: перед повторной отправкой уточните это в конторе.');
+        choice('Вернуться к заявке', null, review, 'quiet');
       });
   }
 
   function done(data) {
+    step('Заявка отправлена', null);
     say('Заявка № ' + data.public_number + ' принята.');
 
     if (data.appointment_at) {
