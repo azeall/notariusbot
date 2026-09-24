@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Посмотреть за 3 минуты — нотариус·бот</title>
+  <meta name="description" content="Пять оформлений сайта, демонстрация приёма заявок и список материалов для запуска сайта нотариуса.">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="tour.css">
+  <script src="tour.js" defer></script>
+</head>
+<body class="tour">
+  <a class="skip-link" href="#main">Перейти к содержанию</a>
+  <header class="top">
+    <a class="mark" href="./">нотариус<span>·</span>бот</a>
+    <a class="btn small ghost" href="./#price">Стоимость</a>
+  </header>
+  <main id="main">
+    <section class="tour-intro">
+      <p class="eyebrow">Знакомство с продуктом · около 3 минут</p>
+      <h1>От сайта<br>до готовой заявки.</h1>
+      <p class="lede">Посмотрите оформление, пройдите путь клиента и загляните в демонстрацию кабинета. Без регистрации.</p>
+      <nav class="tour-route" aria-label="Маршрут знакомства">
+        <a href="#design">01 · Выбрать оформление</a>
+        <a href="#client">02 · Попробовать запись</a>
+        <a href="#office">03 · Увидеть кабинет</a>
+      </nav>
+      <p class="tour-note">Это демонстрационные сайты с вымышленными нотариусами. Для проверки используйте только вымышленные данные; реальный приём не назначается.</p>
+    </section>
+
+    <section id="design" aria-labelledby="design-title">
+      <p class="eyebrow">01 / Оформление</p>
+      <h2 id="design-title">Один продукт, пять характеров.</h2>
+      <p>Откройте один-два варианта. Смотрите на читаемость, удобство поиска услуги и то, насколько оформление подходит вашей конторе.</p>
+      <div class="tour-designs">
+        <a href="https://notarius-wn4h.vercel.app/" target="_blank" rel="noopener">
+          <img src="previews/template.webp" alt="Тёмно-синий сайт с золотыми акцентами" width="1440" height="1000" loading="lazy">
+          <h3>Классический</h3><p>Тёмно-синий и золото. Здесь подключён серверный демо-виджет.</p><span>Открыть сайт ↗</span>
+        </a>
+        <a href="https://notarius-lavender.vercel.app/" target="_blank" rel="noopener">
+          <img src="previews/lavender.webp" alt="Светлое лавандовое оформление" width="1440" height="1000" loading="lazy">
+          <h3>Лавандовый</h3><p>Светлая палитра со сдержанным фиолетовым акцентом.</p><span>Открыть сайт ↗</span>
+        </a>
+        <a href="https://notarius-warm.vercel.app/" target="_blank" rel="noopener">
+          <img src="previews/warm.webp" alt="Тёплое тёмное оформление" width="1440" height="1000" loading="lazy">
+          <h3>Тёплый</h3><p>Тёмные коричневые тона и терракотовые акценты.</p><span>Открыть сайт ↗</span>
+        </a>
+        <a href="https://notarius-modern.vercel.app/" target="_blank" rel="noopener">
+          <img src="previews/modern.webp" alt="Светлое оформление с зелёными акцентами" width="1440" height="1000" loading="lazy">
+          <h3>Зелёный</h3><p>Светлый фон и зелёный акцент.</p><span>Открыть сайт ↗</span>
+        </a>
+        <a href="https://notarius-priemnaya.vercel.app/" target="_blank" rel="noopener">
+          <img src="previews/delo.webp" alt="Оформление Дело с листом документа" width="1440" height="1000" loading="lazy">
+          <h3>Дело</h3><p>Одна страница с вкладками и сценой бумажного документа.</p><span>Открыть сайт ↗</span>
+        </a>
+      </div>
+    </section>
+
+    <section class="tour-two" aria-label="Попробовать продукт">
+      <article id="client">
+        <p class="eyebrow">02 / Клиент</p>
+        <h2>Пройдите путь обращения.</h2>
+        <ol>
+          <li>Откройте симуляцию и выберите нотариальную услугу.</li>
+          <li>Посмотрите список документов, укажите вымышленные имя и телефон.</li>
+          <li>Проследите, как появляется заявка в демонстрационном кабинете.</li>
+        </ol>
+        <a class="btn" href="./#demo">Попробовать без отправки данных</a>
+        <p class="tour-note">Симуляция на витрине работает в браузере. В отличие от неё, виджет синего сайта сохраняет отправленную заявку в тестовом кабинете.</p>
+      </article>
+      <article id="office">
+        <p class="eyebrow">03 / Контора</p>
+        <h2>Посмотрите работу сотрудника.</h2>
+        <ol>
+          <li>Откройте демонстрацию панели и разверните «Попробовать настройки услуг и расписания».</li>
+          <li>Найдите настройки услуг и измените цену в симуляции.</li>
+          <li>Вернитесь к чату: демонстрация использует обновлённый список услуг.</li>
+        </ol>
+        <a class="btn ghost" href="./#panel">Посмотреть панель без пароля</a>
+        <p class="tour-note">Это интерактивный образец, а не кабинет действующей конторы. Он не меняет настройки работающего сервиса.</p>
+      </article>
+    </section>
+
+    <section id="launch" aria-labelledby="launch-title">
+      <p class="eyebrow">Следующий шаг / Для любого оформления</p>
+      <h2 id="launch-title">Что подготовить к запуску.</h2>
+      <p>Отметьте готовые материалы и распечатайте список. Отметки не сохраняются и никуда не отправляются — при перезагрузке они сбросятся.</p>
+      <p class="tour-note">Это рабочий список подготовки, а не юридическое заключение или подтверждение готовности к обработке персональных данных.</p>
+      <div class="launch-list">
+        <fieldset>
+          <legend>Содержание сайта</legend>
+          <label><input type="checkbox"> <span>Выбран дизайн, согласованы цвета и фотографии с правом использования.</span></label>
+          <label><input type="checkbox"> <span>Подготовлены ФИО нотариуса, реквизиты, адрес, рабочие контакты и часы приёма.</span></label>
+          <label><input type="checkbox"> <span>Согласованы услуги, актуальные тарифы и предварительные списки документов.</span></label>
+        </fieldset>
+        <fieldset>
+          <legend>Работа конторы</legend>
+          <label><input type="checkbox"> <span>Назначен ответственный за заявки и определён порядок ответа клиенту.</span></label>
+          <label><input type="checkbox"> <span>Подготовлен список сотрудников и согласованы их права доступа.</span></label>
+          <label><input type="checkbox"> <span>Согласованы длительность приёма, перерывы, выходные и исключения расписания.</span></label>
+        </fieldset>
+        <fieldset>
+          <legend>Проверка перед публикацией</legend>
+          <label><input type="checkbox"> <span>Согласованы домен, размещение и схема обработки данных для действующей конторы.</span></label>
+          <label><input type="checkbox"> <span>Подготовлены документы и организационные меры по обработке данных с учётом роли нотариуса и исполнителя.</span></label>
+          <label><input type="checkbox"> <span>Проверены запись, кабинет, уведомления и отображение сайта на телефоне с вымышленными данными.</span></label>
+          <label><input type="checkbox"> <span>Демо-реквизиты и вымышленные отзывы заменены или удалены; нотариус согласовал публикацию.</span></label>
+        </fieldset>
+      </div>
+      <div class="tour-actions">
+        <p id="launch-progress" role="status" aria-live="polite" aria-atomic="true" hidden></p>
+        <button class="btn ghost" id="print-tour" type="button" hidden>Распечатать список</button>
+      </div>
+      <noscript><p>Список работает без JavaScript. Чтобы распечатать, используйте команду печати браузера.</p></noscript>
+    </section>
+    <section class="tour-contact">
+      <h2>Какой вариант ближе вам?</h2>
+      <p>Напишите название оформления и что нужно конторе: только сайт или ещё приём заявок. Документы клиентов для обсуждения не нужны.</p>
+      <a class="btn" href="https://t.me/ruxjd">Обсудить с Егором в Telegram</a>
+      <a class="btn ghost" href="./#price">Посмотреть стоимость</a>
+    </section>
+  </main>
+  <footer class="tour-footer">
+    <a href="./">На главную</a><a href="politika.html">Политика обработки данных</a><a href="oferta.html">Оферта</a><a href="vozvrat.html">Отказ и возврат</a>
+  </footer>
+</body>
+</html>
