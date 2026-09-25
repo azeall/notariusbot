@@ -17,10 +17,9 @@ from itsdangerous import BadSignature, URLSafeSerializer
 
 from app.config import get_settings
 
-# Сколько ссылка живёт после выдачи. Записываются максимум за две недели
-# вперёд, месяц покрывает это с запасом на перенос.
+# Возраст заявки ограничивает действие ссылки; проверяется вместе с будущей
+# активной записью в web.visits._load. Старые подписанные ссылки совместимы.
 TTL_DAYS = 45
-_MAX_AGE = TTL_DAYS * 24 * 60 * 60
 
 
 def _serializer() -> URLSafeSerializer:

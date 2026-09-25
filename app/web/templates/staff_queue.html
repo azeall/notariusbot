@@ -1,4 +1,5 @@
 {% extends "base_panel.html" %}
+{% block extra_css %}<link rel="stylesheet" href="/static/queue-summary.css?v={{ asset_version }}">{% endblock %}
 {% block container_class %}staff-workspace{% endblock %}
 {% block content %}
 <h1>Заявки</h1>
@@ -11,10 +12,45 @@
   {% endif %}
 </p>
 
+<section class="queue-summary" aria-label="Обзор работы" aria-describedby="queue-summary-note">
+  <div class="queue-summary-cards">
+    <a class="queue-summary-card" href="/staff?status=new&amp;assignee=unassigned">
+      <span>Свободные</span>
+      <strong>{{ summary.free }}</strong>
+      <span class="queue-summary-hint">Новые заявки без ведущего →</span>
+    </a>
+    <a class="queue-summary-card" href="/staff?work=mine_documents">
+      <span>Мои — ждём документы</span>
+      <strong>{{ summary.mine_documents }}</strong>
+      <span class="queue-summary-hint">Заявки в ожидании документов →</span>
+    </a>
+    <a class="queue-summary-card" href="/staff?work=mine_visits_today">
+      <span>Мои — запись на сегодня</span>
+      <strong>{{ summary.mine_visits_today }}</strong>
+      <span class="queue-summary-hint">Заявки с неотменённой записью →</span>
+    </a>
+  </div>
+  <p id="queue-summary-note" class="queue-summary-note">Независимо от фильтров · только активные заявки.
+    Мои — веду или помогаю. Сегодня — весь день по {{ tenant.timezone }}.
+    Нажатие заменяет фильтры.</p>
+</section>
+
 <form method="get" action="/staff" class="card queue-filters" aria-label="Поиск и фильтры заявок">
   <label class="field queue-search">
     <span class="cap">Имя или телефон клиента</span>
     <input type="search" name="q" value="{{ filters.q }}" placeholder="Например, Смирнова или 999 123-45-67">
+  </label>
+  <details class="queue-filter-options"{% if filters.work or filters.status or filters.assignee or filters.date_from or filters.date_to %} open{% endif %}>
+  <summary>Фильтры по задачам, сотрудникам и датам</summary>
+  <div class="queue-filter-fields">
+  <label class="field">
+    <span class="cap">Задачи</span>
+    <select name="work">
+      <option value="">Все задачи</option>
+      {% for value, label in work_labels.items() %}
+        <option value="{{ value }}"{% if filters.work == value %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
   </label>
   <label class="field">
     <span class="cap">Статус</span>
@@ -43,6 +79,8 @@
     <span class="cap">По включительно</span>
     <input type="date" name="date_to" value="{{ filters.date_to }}">
   </label>
+  </div>
+  </details>
   <div class="actions filter-actions">
     <button type="submit">Найти</button>
     {% if filters_active %}<a class="btn ghost" href="/staff">Сбросить</a>{% endif %}

@@ -17,6 +17,9 @@
 .tour-designs h3 { font-size: 1.4rem; }
 .tour-designs p { font-size: .95rem; }
 .tour-designs span { margin-top: auto; padding-top: 8px; text-decoration: underline; text-underline-offset: 4px; }
+.tour-service-update { margin-top: 24px; padding: 18px; border: 1px solid var(--line); border-radius: 8px; }
+.tour-service-update summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+.tour-service-update p, .tour-service-update a { display: block; margin-top: 14px; }
 .tour-two { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; background: var(--wash); }
 .tour-two article { min-width: 0; scroll-margin-top: 90px; }
 .tour-two h2 { font-size: 2rem; }

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="/static/preparation.css?v={{ asset_version }}">
+  <style>{{ palette_css | safe }}</style>
+</head>
+<body>
+<main class="sheet">
+  <header>
+    <p class="eyebrow">Памятка для подготовки</p>
+    <h1>{{ service.title }}</h1>
+    {% if service.description %}<p class="description">{{ service.description }}</p>{% endif %}
+    {% if tenant.slug == 'demo' %}
+    <aside class="notice demo"><strong>Демонстрация сервиса.</strong> Данные нотариуса и перечень документов в этом примере вымышленные. Не используйте памятку для реального обращения.</aside>
+    {% endif %}
+    <p class="notice">Предварительная информация из каталога нотариуса. Окончательный перечень документов подтверждает сотрудник нотариуса с учётом вашей ситуации. Эта памятка не подтверждает запись на приём.</p>
+  </header>
+
+  <section aria-labelledby="contacts-heading" class="contacts">
+    <h2 id="contacts-heading">Уточнить перед обращением</h2>
+    <p><strong>{{ tenant.display_name }}</strong></p>
+    {% if tenant.city %}<p>{{ tenant.city }}</p>{% endif %}
+    {% if tenant.address %}<p class="description">Адрес: {{ tenant.address }}</p>{% endif %}
+    {% if tenant.phone %}<p>Телефон: {{ tenant.phone }}</p>{% endif %}
+    {% if not tenant.phone and not tenant.address %}<p>Контакты можно уточнить на сайте нотариуса.</p>{% endif %}
+  </section>
+
+  <section aria-labelledby="documents-heading">
+    <h2 id="documents-heading">Документы по каталогу</h2>
+    {% if documents %}
+    <p class="screen-only">Отмечайте подготовленные документы. Отметки не отправляются нотариусу и не сохраняются сервисом.</p>
+    <ul class="checklist">
+      {% for document in documents %}
+      <li>
+        <label class="document">
+          <input type="checkbox" autocomplete="off">
+          <span>
+            <strong>{{ document.title }}</strong>
+            <span class="requirement">{% if document.is_required %}Обязательно{% else %}При необходимости{% endif %}</span>
+            {% if document.description %}<span class="description">{{ document.description }}</span>{% endif %}
+          </span>
+        </label>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p>Перечень документов пока не указан. Уточните его у сотрудника нотариуса перед обращением.</p>
+    {% endif %}
+  </section>
+
+  <footer>
+    <p>Перед визитом уточните состав документов, необходимость оригиналов и копий, а также время приёма.</p>
+    <div class="actions screen-only">
+      <button type="button" onclick="window.print()">Распечатать / сохранить PDF</button>
+      <a href="/widget/{{ tenant.slug | urlencode }}">К форме обращения</a>
+    </div>
+    <p class="screen-only print-help">Для печати также можно использовать меню браузера.</p>
+  </footer>
+</main>
+</body>
+</html>

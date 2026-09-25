@@ -48,6 +48,7 @@
 (function () {
   var API = {{ api_base | tojson }};
   var PRIVACY = {{ privacy_url | tojson }};
+  var PREPARATION_BASE = {{ ('/' + tenant.slug + '/services/') | tojson }};
   var CONSENT_VERSION = {{ consent_version | tojson }};
   var CONSENT_TEXT = {{ consent_text | tojson }};
   var CONSENT_FINGERPRINT = {{ consent_fingerprint | tojson }};
@@ -164,6 +165,16 @@
     choices.appendChild(b);
     if (choices.children.length === 1) scroll();
     return b;
+  }
+
+  function actionLink(label, url) {
+    var a = document.createElement('a');
+    a.className = 'chip quiet';
+    a.textContent = label;
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    choices.appendChild(a);
   }
 
   function ask(placeholder, handler, value, type) {
@@ -319,6 +330,7 @@
       });
 
       choice('Оформить заявку', null, askName, 'primary');
+      actionLink('Памятка по документам ↗', PREPARATION_BASE + state.service.id + '/prepare');
       choice('Выбрать другую услугу', null, function () {
         start();
       }, 'quiet');
@@ -489,7 +501,13 @@
     say('Заявка № ' + data.public_number + ' принята.');
 
     if (data.appointment_at) {
-      reply('Ждём вас в выбранное время. Сотрудник свяжется для подтверждения.');
+      say('Выбранное время: ' + (data.appointment_label || state.slotLabel || data.appointment_at));
+      say('Сотрудник свяжется для подтверждения. Сохраните ссылку на управление записью.');
+      if (data.visit_url) {
+        actionLink('Посмотреть, перенести или отменить запись ↗', data.visit_url);
+        actionLink('Сохранить в календарь (.ics)', data.visit_url + '/calendar.ics');
+      }
+      actionLink('Памятка по документам ↗', PREPARATION_BASE + state.service.id + '/prepare');
     } else if (data.upload_url) {
       reply(null, function () {
         bubble('bot', function (el) {

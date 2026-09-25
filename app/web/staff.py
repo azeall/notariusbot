@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request as HttpRequest, status
@@ -14,6 +14,7 @@ from app.domain.security import hash_password, verify_password
 from app.domain.statuses import STATUS_LABELS, ALLOWED_TRANSITIONS, TransitionError
 from app.domain.storage import DocumentStorage
 from app.models import (
+    Appointment,
     Attachment,
     AuditLog,
     Client,
@@ -221,12 +222,43 @@ async def queue(
     ]
     tenant = await session.get(Tenant, staff.tenant_id)
     tz = ZoneInfo(tenant.timezone)
+    now = datetime.now(UTC)
+    today = now.astimezone(tz).date()
+    # EXISTS не размножает заявки с несколькими участниками или записями.
+    mine_condition = or_(
+        Request.assigned_staff_id == staff.id,
+        select(RequestParticipant.id).where(
+            RequestParticipant.request_id == Request.id,
+            RequestParticipant.tenant_id == staff.tenant_id,
+            RequestParticipant.staff_id == staff.id,
+            RequestParticipant.status == ParticipationStatus.ACTIVE,
+        ).exists(),
+    )
+    visits_today = select(Appointment.id).where(
+        Appointment.request_id == Request.id,
+        Appointment.tenant_id == staff.tenant_id,
+        Appointment.is_cancelled.is_(False),
+        Appointment.starts_at >= datetime.combine(today, time.min, tz),
+        Appointment.starts_at < datetime.combine(today + timedelta(days=1), time.min, tz),
+    ).exists()
+    work_conditions = {
+        "mine_documents": mine_condition & (Request.status == RequestStatus.AWAITING_DOCUMENTS),
+        "mine_visits_today": mine_condition & Request.status.in_(open_statuses) & visits_today,
+    }
+    work_labels = {
+        "mine_documents": "Мои — ждём документы",
+        "mine_visits_today": "Мои — запись на сегодня",
+    }
     filters = {key: http_request.query_params.get(key, "").strip()
-               for key in ("q", "status", "date_from", "date_to", "assignee")}
+               for key in ("q", "status", "date_from", "date_to", "assignee", "work")}
     conditions = [Request.tenant_id == staff.tenant_id]
     filter_error = None
     queue_statuses = [RequestStatus.NEW, *open_statuses]
     try:
+        if filters["work"]:
+            if filters["work"] not in work_conditions:
+                raise ValueError
+            conditions.append(work_conditions[filters["work"]])
         if filters["status"]:
             selected_status = RequestStatus(filters["status"])
             if selected_status not in queue_statuses:
@@ -245,7 +277,7 @@ async def queue(
         elif filters["assignee"]:
             conditions.append(Request.assigned_staff_id == uuid.UUID(filters["assignee"]))
     except ValueError:
-        filter_error = "Проверьте фильтры: даты должны идти по порядку, статус и сотрудник — из списка."
+        filter_error = "Проверьте фильтры: даты должны идти по порядку, статус, сотрудник и задачи — из списка."
         conditions.append(false())
 
     if filters["q"]:
@@ -283,26 +315,13 @@ async def queue(
     )
 
     # Свои — это и те, что веду, и те, где помогаю.
-    helping_ids = list(
-        await session.scalars(
-            select(RequestParticipant.request_id).join(Request).where(
-                Request.tenant_id == staff.tenant_id,
-                RequestParticipant.tenant_id == staff.tenant_id,
-                RequestParticipant.staff_id == staff.id,
-                RequestParticipant.status == ParticipationStatus.ACTIVE,
-            )
-        )
-    )
     mine = list(
         await session.scalars(
             select(Request)
             .where(
                 *conditions,
                 Request.status.in_(open_statuses),
-                or_(
-                    Request.assigned_staff_id == staff.id,
-                    Request.id.in_(helping_ids) if helping_ids else false(),
-                ),
+                mine_condition,
             )
             .options(*common)
             .order_by(Request.claimed_at)
@@ -347,11 +366,17 @@ async def queue(
     assignees = list(await session.scalars(
         select(Staff).where(Staff.tenant_id == staff.tenant_id).order_by(Staff.full_name)
     ))
-    # Баннер сравнивает всю очередь с тем же счётчиком, даже при активном поиске.
-    new_count = await session.scalar(select(func.count(Request.id)).where(
-        Request.tenant_id == staff.tenant_id, Request.status == RequestStatus.NEW,
-    ))
-    now = datetime.now(UTC)
+    # Обзор и баннер считают всю активную очередь, независимо от фильтров.
+    counts = (await session.execute(select(
+        func.count(Request.id).filter(Request.status == RequestStatus.NEW).label("new"),
+        func.count(Request.id).filter(
+            Request.status == RequestStatus.NEW, Request.assigned_staff_id.is_(None),
+        ).label("free"),
+        *(func.count(Request.id).filter(condition).label(key)
+          for key, condition in work_conditions.items()),
+    ).where(
+        Request.tenant_id == staff.tenant_id, Request.status.in_(queue_statuses),
+    ))).mappings().one()
     return _templates().TemplateResponse(
         http_request,
         "staff_queue.html",
@@ -368,8 +393,10 @@ async def queue(
             "filters_active": any(filters.values()),
             "filter_error": filter_error,
             "queue_statuses": queue_statuses,
+            "work_labels": work_labels,
             "assignees": assignees,
-            "new_count": new_count or 0,
+            "new_count": counts["new"],
+            "summary": {key: counts[key] for key in ("free", *work_conditions)},
             "timing": {r.id: _request_timing(r, now, tz) for r in unclaimed + mine + others},
         },
         status_code=status.HTTP_400_BAD_REQUEST if filter_error else status.HTTP_200_OK,

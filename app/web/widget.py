@@ -214,5 +214,7 @@ async def submit_request(
         checklist=[DocumentOut(**item) for item in request.checklist],
         upload_url=upload_url,
         appointment_at=appointment_at,
+        appointment_label=(f"{_slot_label(appointment_at.astimezone(ZoneInfo(tenant.timezone)))} ({tenant.timezone})"
+                           if appointment_at else None),
         visit_url=visit_url,
     )

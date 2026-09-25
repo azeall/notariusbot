@@ -13,7 +13,7 @@ from app.web import sessions
 
 WEB_DIR = Path(__file__).resolve().parent
 TEMPLATES = Jinja2Templates(directory=str(WEB_DIR / "templates"))
-TEMPLATES.env.globals["asset_version"] = "20260917-ux"
+TEMPLATES.env.globals["asset_version"] = "20260925-followup"
 
 
 @asynccontextmanager
@@ -74,10 +74,11 @@ def create_app() -> FastAPI:
 
     app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
 
-    from app.web import admin, pages, platform, staff, uploads, visits, widget
+    from app.web import admin, pages, platform, preparation, staff, uploads, visits, widget
 
     app.include_router(widget.router)
     app.include_router(pages.router)
+    app.include_router(preparation.router)
     app.include_router(uploads.router)
     app.include_router(visits.router)
     app.include_router(platform.router)

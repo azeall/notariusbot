@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.channels import flow
 from app.domain.requests import create_request, transition_request
-from app.domain.schedule import book_slot
 from app.models import Appointment, Channel, Client, RequestStatus
 from app.reminders import DAY_BEFORE, render_reminder, send_due_reminders
 
@@ -22,12 +21,11 @@ async def _booked(session, tenant, client, visit_service, *, starts_in: timedelt
         session, tenant=tenant, client=client, service=visit_service, channel=Channel.WIDGET
     )
     await session.flush()
-    appointment = await book_slot(
-        session,
-        request=request,
-        service=visit_service,
-        starts_at=datetime.now(UTC) + starts_in,
-    )
+    # Reminder timing is independent of whether this instant is a bookable slot.
+    start = datetime.now(UTC) + starts_in
+    appointment = Appointment(tenant_id=tenant.id, request_id=request.id,
+                              starts_at=start, ends_at=start + timedelta(minutes=60))
+    session.add(appointment)
     await session.commit()
     return request, appointment
 

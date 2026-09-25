@@ -13,6 +13,15 @@ MSK = ZoneInfo("Europe/Moscow")
 MONDAY_MORNING = datetime(2026, 8, 17, 10, 0, tzinfo=MSK)
 
 
+@pytest.fixture(autouse=True)
+def fixed_schedule_clock(monkeypatch):
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return MONDAY_MORNING.astimezone(tz)
+    monkeypatch.setattr('app.domain.schedule.datetime', Clock)
+
+
 async def test_slots_respect_working_hours(session, tenant, visit_service):
     slots = await available_slots(
         session,

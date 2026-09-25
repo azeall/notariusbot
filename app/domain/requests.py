@@ -10,6 +10,7 @@ from app.domain.security import generate_token, hash_token
 from app.domain.statuses import ensure_transition_allowed
 from app.models import (
     TERMINAL_STATUSES,
+    Appointment,
     Channel,
     Client,
     Request,
@@ -34,7 +35,7 @@ async def _next_public_number(session: AsyncSession, tenant_id: uuid.UUID) -> in
     один номер и вставка упадёт на уникальном индексе.
     """
     await session.execute(
-        select(Tenant.id).where(Tenant.id == tenant_id).with_for_update()
+        select(Tenant.id).where(Tenant.id == tenant_id).with_for_update(key_share=True)
     )
     current = await session.scalar(
         select(func.coalesce(func.max(Request.public_number), 0)).where(
@@ -152,12 +153,27 @@ async def transition_request(
     if staff is not None and staff.tenant_id != request.tenant_id:
         raise RequestError("Сотрудник другого нотариуса")
 
-    previous = request.status
+    # Совпадает с порядком записи/переноса: tenant -> request. Не даём autoflush
+    # заранее взять блокировку заявки, пока другая операция держит контору.
+    with session.no_autoflush:
+        await session.execute(select(Tenant.id).where(Tenant.id == request.tenant_id)
+                              .with_for_update(key_share=True))
+        previous = await session.scalar(select(Request.status).where(
+            Request.id == request.id, Request.tenant_id == request.tenant_id,
+        ).with_for_update())
+    if previous is None:
+        raise RequestError("Заявка не найдена")
     ensure_transition_allowed(previous, target)
 
     request.status = target
     if target in TERMINAL_STATUSES:
         request.closed_at = datetime.now(UTC)
+        await session.execute(update(Appointment).where(
+            Appointment.tenant_id == request.tenant_id,
+            Appointment.request_id == request.id,
+            Appointment.is_cancelled.is_(False),
+            Appointment.starts_at > request.closed_at,
+        ).values(is_cancelled=True))
     if target is RequestStatus.NEW:
         # Возврат в общую очередь: заявка снова ничья.
         request.assigned_staff_id = None

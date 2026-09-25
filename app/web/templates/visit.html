@@ -4,40 +4,53 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
   <title>{{ title }}</title>
   <link rel="stylesheet" href="/static/widget.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="/static/visit.css?v={{ asset_version }}">
 </head>
-<body>
+<body class="visit-page">
 <div class="wrap">
   <header>
     <div class="name">{{ tenant.display_name }}</div>
     <div class="sub">Заявка № {{ req.public_number }} · {{ req.service_title }}</div>
+    {% if tenant.slug == 'demo' %}<p class="demo-note">Демонстрационная запись. Реальный приём не назначается.</p>{% endif %}
   </header>
 
   <main class="page scroll">
     {% if moved %}
       <div class="callout">Время изменено. Сотрудник увидит новое.</div>
     {% endif %}
+    {% if busy %}
+      <div class="callout" role="alert">Выбранное время недоступно. Прежняя запись сохранена. Выберите другое окно.</div>
+    {% endif %}
 
-    <h2>Вы записаны на {{ appointment.starts_at.strftime('%d.%m.%Y, %H:%M') }}</h2>
+    <h1>Ваше время приёма</h1>
+    <p class="visit-time">{{ local_start.strftime('%d.%m.%Y, %H:%M') }}</p>
+    <p class="hint">Время конторы · {{ tenant.timezone }}</p>
+    {% if tenant.address %}<p>{{ tenant.address }}</p>{% endif %}
+    {% if tenant.phone %}<p>Телефон конторы: {{ tenant.phone }}</p>{% endif %}
+    <div class="visit-actions">
+      <a class="chip" href="/visit/{{ token }}/calendar.ics">Сохранить в календарь (.ics)</a>
+      {% if preparation_url %}<a class="chip quiet" href="{{ preparation_url }}" target="_blank" rel="noopener noreferrer">Памятка по документам ↗</a>{% endif %}
+    </div>
+    <p class="hint">Календарь сохраняет копию. После переноса или отмены обновите событие в нём вручную.</p>
+    <h2>Изменить время</h2>
     <p class="hint">
       Не получается прийти — выберите другое время или отмените запись.
       Звонить не нужно.
     </p>
 
     {% if slots %}
-      <p class="hint">Свободное время:</p>
-      <form method="post" action="/visit/{{ token }}/move">
-        <ul class="checklist">
+      <form class="move-form" method="post" action="/visit/{{ token }}/move">
+        <label for="new-slot">Новое время · {{ tenant.timezone }}</label>
+        <select id="new-slot" name="slot" required>
+          <option value="" selected disabled>Выберите свободное время</option>
           {% for slot in slots %}
-            <li style="padding-left:0">
-              <button class="ghost" type="submit" name="slot" value="{{ slot.isoformat() }}"
-                      style="width:100%;text-align:left">
-                {{ slot.strftime('%d %B, %H:%M') }}
-              </button>
-            </li>
+            <option value="{{ slot.isoformat() }}">{{ slot.strftime('%d.%m.%Y, %H:%M') }}</option>
           {% endfor %}
-        </ul>
+        </select>
+        <button class="chip primary" type="submit">Перенести запись</button>
       </form>
     {% else %}
       <div class="callout">
@@ -46,10 +59,11 @@
       </div>
     {% endif %}
 
-    <form method="post" action="/visit/{{ token }}/cancel" style="margin-top:22px"
+    <form class="cancel-form" method="post" action="/visit/{{ token }}/cancel"
           onsubmit="return confirm('Отменить запись? Время освободится для других.')">
       <button class="ghost" type="submit">Отменить запись</button>
     </form>
+    <p class="hint">Сохраните эту страницу в закладки. Ссылка позволяет управлять записью — не публикуйте её и не пересылайте посторонним.</p>
   </main>
 </div>
 </body>

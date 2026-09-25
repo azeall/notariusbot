@@ -1,0 +1,14 @@
+html:has(.visit-page), body.visit-page { height: auto; min-height: 100%; overflow: auto; }
+.visit-page .wrap { height: auto; max-width: 760px; margin: 0 auto; }
+.visit-page .page { overflow: visible; }
+.visit-page h1 { font: 28px/1.25 Georgia, serif; margin: 0 0 16px; }
+.visit-page h2 { margin-top: 32px; }
+.visit-time { font-size: 24px; font-weight: 600; margin: 0; }
+.visit-actions { display: grid; gap: 10px; margin: 24px 0 12px; }
+.visit-page a.chip { display: block; text-decoration: none; }
+.move-form { display: grid; gap: 12px; margin-top: 20px; }
+.move-form select { width: 100%; min-width: 0; min-height: 48px; padding: 12px; border: 1px solid var(--slate); border-radius: 8px; background: var(--navy-card); color: var(--cream); font: inherit; }
+.cancel-form { margin: 32px 0 20px; }
+.visit-page :focus-visible { outline: 2px solid var(--gold-light); outline-offset: 4px; }
+.visit-page .hint { color: #aab8d0; }
+@media (max-width: 400px) { .visit-page .page, .visit-page header { padding: 20px 16px; } }

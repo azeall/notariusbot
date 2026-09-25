@@ -12,6 +12,7 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+a.chip { display: block; text-decoration: none; }
 
 html, body {
   height: 100%;
